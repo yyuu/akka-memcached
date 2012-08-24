@@ -9,6 +9,7 @@ import scala.collection.mutable.HashMap
 import com.klout.akkamemcache.Protocol._
 
 class MemcachedIOActor extends Actor {
+    def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
     implicit val ec = ActorSystem()
     
 
@@ -29,7 +30,7 @@ class MemcachedIOActor extends Actor {
         }
     }
 
-    val state = IO.IterateeRef.Map.async[IO.Handle]()(context.dispatcher)
+    val iteratee = Iteratees.processLine 
 
     def receive = {
         case raw: ByteString =>
@@ -37,10 +38,10 @@ class MemcachedIOActor extends Actor {
             connection write raw
 
         case get @ GetCommand(key) =>
-            println("Get: " + key)
+            //println("Get: " + key)
             loadGetToMap(sender, key)
             connection write get.toByteString
-            sender ! Found(key, "testResult")
+            //sender ! Found(key, "testResult")
 
         case delete @ DeleteCommand(key) => 
             println("Delete: " + key)
@@ -51,9 +52,18 @@ class MemcachedIOActor extends Actor {
             connection write set.toByteString
 
         case IO.Read(socket, bytes) =>
-            println("reading: " + bytes)
-            state(socket)(IO Chunk bytes)
-            state(socket) map (_ =>  Iteratees.processLine)
+            println("reading: " + ascii(bytes))
+            iteratee(IO Chunk bytes)
+            iteratee.map{data =>  
+                Iteratees.processLine
+            }
+
+        case IO.NewClient(server) => {
+            println("New Client")
+            val socket = server.accept()
+            iteratee.flatMap(_ => Iteratees.processLine)
+        }
+
     }
 
 }

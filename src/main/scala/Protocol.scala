@@ -9,26 +9,37 @@ object Iteratees {
 
     def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
 
-    val readLine: IO.Iteratee[Option[String]] = IO take 5 flatMap {
-        case Value => processValue map (Some(_))
-        case other => IO takeUntil CRLF map (_ => Some(other.toString))
+    val readLine: IO.Iteratee[Option[String]] = {
+        println("In readLine")
+        IO takeUntil Space flatMap {
+            case Value => {
+                println("Value!")
+                processValue map (Some(_))
+            }
+            case other => {
+                println("Other!")
+                IO takeUntil CRLF map (_ => Some(other.toString))
+            }
+        }
     }
 
     val processValue: IO.Iteratee[String] =
         for {
             key <- IO takeUntil Space
-            _ <- IO takeUntil Space
-            length <- IO takeUntil Space map (ascii(_).toInt)
-            _ <- IO takeUntil CRLF
+            id  <- IO takeUntil Space
+            length <- IO takeUntil CRLF map (ascii(_).toInt)
             value <- IO take length
-            _ <- IO takeUntil CRLF
-            _ <- IO takeUntil CRLF
+            newline <- IO takeUntil CRLF
+            end <- IO takeUntil CRLF
         } yield "key: [%s], length: [%d], value: [%s]" format (key, length, value)
 
 
-    val processLine: IO.Iteratee[Unit] = readLine map {
-        case Some(thing) => println("something: "  + thing)
-        case _ => println("error")
+    val processLine: IO.Iteratee[Unit] = {
+        println("In ProcessLine")
+            readLine map {
+                case Some(thing) => println("something: "  + thing)
+                case _ => println("error")
+            }
     }
 
 
