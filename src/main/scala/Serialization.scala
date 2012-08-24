@@ -1,3 +1,4 @@
+package com.klout.akkamemcache
 
 trait Serializer[T] {
 

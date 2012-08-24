@@ -1,3 +1,5 @@
+package com.klout.akkamemcache
+
 import akka.actor.IO
 import akka.util.ByteString
 
@@ -8,7 +10,7 @@ object Iteratees {
 
     val readLine: IO.Iteratee[Option[String]] = IO take 5 flatMap {
         case Value => processValue map (Some(_))
-        case _ => IO takeUntil CRLF map (_ => None)
+        case other => IO takeUntil CRLF map (_ => Some(other))
     }
 
     val processValue: IO.Iteratee[String] =
@@ -39,8 +41,6 @@ object Constants {
 
     val Value = ByteString("VALUE")
 
-    val Error = ByteString("ERROR")
-
     val End = ByteString("END")
 
 
@@ -50,20 +50,19 @@ object Constants {
 object Protocol {
     import Messages._
 
-    sealed trait Command {
-        def toRequest: Request
+    trait Command {
+        def toByteString: ByteString
+    }
+    case class SetCommand(key: String, payload: ByteString, ttl: Long) extends Command {
+        override def toByteString = ByteString("set " + key + " " + ttl + " 0 " + payload.size + "\r\n") ++ payload ++ ByteString("\r\n")
     }
 
-    case class SetCommand(values: Map[String, Array[Byte]], ttlSeconds: Long) extends Command {
-        override def toRequest: Request = null
+    case class DeleteCommand(key: String) extends Command {
+        override def toByteString = ByteString("delete "+key + "\r\n")
     }
 
-    case class DeleteCommand(keys: Set[String]) extends Command {
-        override def toRequest: Request = null
-    }
-
-    case class GetComand(keys: Set[String]) extends Command {
-        override def toRequest: Request = null
+    case class GetCommand(key: String) extends Command {
+        override def toByteString = ByteString("get " + key + "\r\n")
     }
 
 }
