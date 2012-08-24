@@ -2,6 +2,7 @@ package com.klout.akkamemcache
 
 import akka.actor.IO
 import akka.util.ByteString
+import com.klout.akkamemcache.{GetResult, Found}
 
 
 object Iteratees {
@@ -9,21 +10,22 @@ object Iteratees {
 
     def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
 
-    val readLine: IO.Iteratee[Option[String]] = {
-        println("In readLine")
+    val ioActor = Tester.ioActor
+
+    val readLine: IO.Iteratee[GetResult] = {
         IO takeUntil Space flatMap {
             case Value => {
-                println("Value!")
-                processValue map (Some(_))
+                //println("Value!")
+                processValue
             }
             case other => {
                 println("Other!")
-                IO takeUntil CRLF map (_ => Some(other.toString))
+                IO takeUntil CRLF map (_ => NotFound("Key"))
             }
         }
     }
 
-    val processValue: IO.Iteratee[String] =
+    val processValue: IO.Iteratee[GetResult] =
         for {
             key <- IO takeUntil Space
             id  <- IO takeUntil Space
@@ -31,15 +33,19 @@ object Iteratees {
             value <- IO take length
             newline <- IO takeUntil CRLF
             end <- IO takeUntil CRLF
-        } yield "key: [%s], length: [%d], value: [%s]" format (key, length, value)
-
+        } yield {
+            // println ("key: [%s], length: [%d], value: [%s]".format(key, length, value))
+            Found(ascii(key),value)
+        }
 
     val processLine: IO.Iteratee[Unit] = {
-        println("In ProcessLine")
+        IO repeat{
             readLine map {
-                case Some(thing) => println("something: "  + thing)
-                case _ => println("error")
+                case getResult:GetResult => {
+                    ioActor ! getResult
+                }
             }
+        }
     }
 
 

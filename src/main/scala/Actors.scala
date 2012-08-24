@@ -38,10 +38,8 @@ class MemcachedIOActor extends Actor {
             connection write raw
 
         case get @ GetCommand(key) =>
-            //println("Get: " + key)
             loadGetToMap(sender, key)
             connection write get.toByteString
-            //sender ! Found(key, "testResult")
 
         case delete @ DeleteCommand(key) => 
             println("Delete: " + key)
@@ -52,18 +50,21 @@ class MemcachedIOActor extends Actor {
             connection write set.toByteString
 
         case IO.Read(socket, bytes) =>
-            println("reading: " + ascii(bytes))
+            //println("reading: " + ascii(bytes))
             iteratee(IO Chunk bytes)
             iteratee.map{data =>  
                 Iteratees.processLine
             }
 
-        case IO.NewClient(server) => {
-            println("New Client")
-            val socket = server.accept()
-            iteratee.flatMap(_ => Iteratees.processLine)
+        case found:Found => {
+            val requestingActors = getsMap.filter{
+                case (actor, keys) =>
+                    keys.contains(found.key)
+            }.map(_._1)
+            requestingActors foreach { actor => 
+                actor ! found
+            }
         }
-
     }
 
 }
@@ -72,7 +73,7 @@ sealed trait GetResult
 
 case class NotFound(key: String) extends GetResult
 
-case class Found(key: String, value: String) extends GetResult
+case class Found(key: String, value: ByteString) extends GetResult
 
 class MemcachedClientActor extends Actor {
     implicit val ec = ActorSystem()

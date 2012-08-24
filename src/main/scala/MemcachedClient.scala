@@ -66,8 +66,5 @@ object Tester {
 
     def main(args: Array[String]){
         (actor ? GetCommand("blah")).map(result => println("Result: " + result))
-        //(actor ? GetCommand("blah")).map(result => println("Result: " + result))
-        //(actor ? GetCommand("blah")).map(result => println("Result: " + result))
-        //Tester.rawMemCached("get blah\r\n").map(result => println("Result: "+ result))
     }
 }
