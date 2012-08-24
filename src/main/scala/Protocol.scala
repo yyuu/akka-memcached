@@ -3,6 +3,7 @@ package com.klout.akkamemcache
 import akka.actor.IO
 import akka.util.ByteString
 
+
 object Iteratees {
     import Constants._
 
@@ -10,7 +11,7 @@ object Iteratees {
 
     val readLine: IO.Iteratee[Option[String]] = IO take 5 flatMap {
         case Value => processValue map (Some(_))
-        case other => IO takeUntil CRLF map (_ => Some(other))
+        case other => IO takeUntil CRLF map (_ => Some(other.toString))
     }
 
     val processValue: IO.Iteratee[String] =
@@ -48,21 +49,21 @@ object Constants {
 }
 
 object Protocol {
-    import Messages._
+    import Constants._
 
     trait Command {
         def toByteString: ByteString
     }
     case class SetCommand(key: String, payload: ByteString, ttl: Long) extends Command {
-        override def toByteString = ByteString("set " + key + " " + ttl + " 0 " + payload.size + "\r\n") ++ payload ++ ByteString("\r\n")
+        override def toByteString = ByteString("set " + key + " " + ttl + " 0 " + payload.size) ++ CRLF ++ payload ++ CRLF
     }
 
     case class DeleteCommand(key: String) extends Command {
-        override def toByteString = ByteString("delete "+key + "\r\n")
+        override def toByteString = ByteString("delete "+key ) ++ CRLF
     }
 
     case class GetCommand(key: String) extends Command {
-        override def toByteString = ByteString("get " + key + "\r\n")
+        override def toByteString = ByteString("get " + key) ++ CRLF
     }
 
 }

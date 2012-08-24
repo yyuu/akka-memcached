@@ -4,22 +4,19 @@ import akka.actor._
 import akka.util.ByteString
 import java.net.InetSocketAddress
 import akka.dispatch.Future
+import com.klout.akkamemcache.Protocol._ 
+import scala.collection.mutable.HashMap
 import com.klout.akkamemcache.Protocol._
-
-
-object Messages {
-    case class CommandWithActor(actor:ActorRef, command: Command)
-}
 
 class MemcachedIOActor extends Actor {
     implicit val ec = ActorSystem()
-    import Messages._
+    
 
     val port = 11211
 
-    var connection: IO.SocketHandle = _
+     var connection: IO.SocketHandle = _
 
-    var getsMap:Map[ActorRef,Set[String]] = Map.empty()
+     var getsMap:HashMap[ActorRef,Set[String]] = new HashMap
 
     override def preStart {
         connection = IOManager(context.system) connect new InetSocketAddress(port)
@@ -35,10 +32,15 @@ class MemcachedIOActor extends Actor {
     val state = IO.IterateeRef.Map.async[IO.Handle]()(context.dispatcher)
 
     def receive = {
-        case CommandWithActor(actor, get @ GetCommand(key)) =>
+        case raw: ByteString =>
+            println("Raw: "+raw)
+            connection write raw
+
+        case get @ GetCommand(key) =>
             println("Get: " + key)
-            loadGetToMap(actor, key)
+            loadGetToMap(sender, key)
             connection write get.toByteString
+            sender ! Found(key, "testResult")
 
         case delete @ DeleteCommand(key) => 
             println("Delete: " + key)
@@ -48,25 +50,12 @@ class MemcachedIOActor extends Actor {
             println("Set: " + key)
             connection write set.toByteString
 
-        case IO.Read(handle, bytes) =>
+        case IO.Read(socket, bytes) =>
             println("reading: " + bytes)
-            println(Iteratees.readLine(bytes))
+            state(socket)(IO Chunk bytes)
+            state(socket) map (_ =>  Iteratees.processLine)
     }
 
-}
-
-class MemCachedClientActor extends Actor {
-    val ioActor = RealMemcachedClient.actor
-
-    var originalSender: ActorRef = _
-    
-    def recieve = {
-        case command @ GetCommand => {
-            originalSender = sender
-            ioActor ! command
-        }
-        case result @ GetResult => originalSender ! result
-    }
 }
 
 sealed trait GetResult
@@ -74,3 +63,19 @@ sealed trait GetResult
 case class NotFound(key: String) extends GetResult
 
 case class Found(key: String, value: String) extends GetResult
+
+class MemcachedClientActor extends Actor {
+    implicit val ec = ActorSystem()
+    var originalSender: ActorRef = _
+    val ioActor = Tester.ioActor
+
+
+    def receive = {
+        case command: GetCommand => {
+            originalSender = sender
+            ioActor ! command
+        }
+        case result: GetResult => originalSender ! result
+    }
+}
+

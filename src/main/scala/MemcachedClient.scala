@@ -7,6 +7,9 @@ import akka.util.duration._
 import akka.pattern.ask
 import akka.util.Timeout
 
+import com.klout.akkamemcache.MemcachedIOActor
+import com.klout.akkamemcache.Protocol._
+
 trait MemcachedClient {
 
     val DefaultDuration = 1 hour
@@ -50,18 +53,21 @@ class RealMemcachedClient extends MemcachedClient {
 
 object Tester {
     implicit val timeout = Timeout(1 seconds) // needed for `?` below
-    import Messages._
     import akka.util.ByteString
 
     val system = ActorSystem()
 
-    val actor = system.actorOf(Props[MemcachedIOActor])
+    val ioActor = system.actorOf(Props[MemcachedIOActor])
+    val actor = system.actorOf(Props[MemcachedClientActor])
 
     def rawMemCached(string: String)(implicit timeout: Timeout):Future[Any] = {
-        actor ? Request(ByteString(string))
+        actor ? ByteString(string)
     }
 
     def main(args: Array[String]){
-        Tester.rawMemCached("get blah\r\n").map(result => println("Result: "+ result))
+        (actor ? GetCommand("blah")).map(result => println("Result: " + result))
+        //(actor ? GetCommand("blah")).map(result => println("Result: " + result))
+        //(actor ? GetCommand("blah")).map(result => println("Result: " + result))
+        //Tester.rawMemCached("get blah\r\n").map(result => println("Result: "+ result))
     }
 }
