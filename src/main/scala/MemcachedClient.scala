@@ -58,13 +58,25 @@ object Tester {
     val system = ActorSystem()
 
     val ioActor = system.actorOf(Props[MemcachedIOActor])
-    val actor = system.actorOf(Props[MemcachedClientActor])
+    
 
-    def rawMemCached(string: String)(implicit timeout: Timeout):Future[Any] = {
-        actor ? ByteString(string)
+    def doCommand(command: Command)(implicit timeout: Timeout) {
+        command match {
+            case get:GetCommand => {
+                val actor = system.actorOf(Props[MemcachedClientActor])
+                (actor ? command).map(result => println("Result: " + result))
+            }
+            case other:Command => {
+                ioActor ! command
+            }
+        }
     }
 
-    def main(args: Array[String]){
-        (actor ? GetCommand("blah")).map(result => println("Result: " + result))
+    def main(args: Array[String]) {
+        doCommand(GetCommand("blah")) 
+        doCommand(GetCommand("blah2"))
+        doCommand(GetCommand("blah3"))
+        doCommand(SetCommand("blah2",ByteString("abc"),0))
+        doCommand(DeleteCommand("blah4"))
     }
 }

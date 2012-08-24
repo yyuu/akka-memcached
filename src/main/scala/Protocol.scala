@@ -7,26 +7,66 @@ import com.klout.akkamemcache.{GetResult, Found}
 
 object Iteratees {
     import Constants._
-
     def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
 
     val ioActor = Tester.ioActor
+    val whiteSpace = Set(' ','\r').map(_.toByte)
+    
+    def continue (byte: Byte): Boolean = {
+        !whiteSpace.contains(byte)
+    }
 
-    val readLine: IO.Iteratee[GetResult] = {
-        IO takeUntil Space flatMap {
-            case Value => {
-                //println("Value!")
+    val readLine: IO.Iteratee[Option[GetResult]] = {
+        (IO takeWhile continue) flatMap {
+            case Value =>
                 processValue
+            case Deleted => {
+                println("DELETED")
+                IO takeUntil CRLF map { _ =>
+                    println("A key was deleted")
+                    None
+                }
             }
+            case Stored => {
+                IO takeUntil CRLF map { _ =>
+                    println("A key was stored")
+                    None
+                }
+            }
+            case Error => {
+                IO takeUntil CRLF map { _ =>
+                    println("An error occurred")
+                    None
+                }
+            }
+            case End => {
+                println("END!")
+                IO takeUntil CRLF map { _ =>
+                    println("Key not found")
+                    Some(com.klout.akkamemcache.NotFound("key"))
+                }
+            }
+
+            case NotFound => {
+                IO takeUntil CRLF map { _ => 
+                    println("Delete failed: key not found")
+                    Some(com.klout.akkamemcache.NotFound("key"))
+                }
+            }
+
             case other => {
-                println("Other!")
-                IO takeUntil CRLF map (_ => NotFound("Key"))
+                IO takeUntil CRLF map { 
+                    data =>
+                        println("Unexpected output from Memcached: "+ ascii(other) + ". " + ascii(data))
+                        None
+                }
             }
         }
     }
 
-    val processValue: IO.Iteratee[GetResult] =
+    val processValue: IO.Iteratee[Option[GetResult]] =
         for {
+            _ <- IO take 1
             key <- IO takeUntil Space
             id  <- IO takeUntil Space
             length <- IO takeUntil CRLF map (ascii(_).toInt)
@@ -35,15 +75,16 @@ object Iteratees {
             end <- IO takeUntil CRLF
         } yield {
             // println ("key: [%s], length: [%d], value: [%s]".format(key, length, value))
-            Found(ascii(key),value)
+            Some(Found(ascii(key),value))
         }
 
     val processLine: IO.Iteratee[Unit] = {
         IO repeat{
             readLine map {
-                case getResult:GetResult => {
+                case Some(getResult) => {
                     ioActor ! getResult
                 }
+                case _ => {}
             }
         }
     }
@@ -58,6 +99,14 @@ object Constants {
     val CRLF = ByteString("\r\n")
 
     val Value = ByteString("VALUE")
+
+    val Deleted = ByteString("DELETED")
+
+    val Stored = ByteString("STORED")
+
+    val Error = ByteString("ERROR")
+
+    val NotFound = ByteString("NOT_FOUND")
 
     val End = ByteString("END")
 
