@@ -6,8 +6,8 @@ import akka.util.Duration
 import akka.util.duration._
 import akka.pattern.ask
 import akka.util.Timeout
+import akka.util.ByteString
 
-import com.klout.akkamemcache.MemcachedIOActor
 import com.klout.akkamemcache.Protocol._
 
 trait MemcachedClient {
@@ -27,32 +27,45 @@ trait MemcachedClient {
 }
 
 class RealMemcachedClient extends MemcachedClient {
-    
+    implicit val timeout = Timeout(30 seconds) // needed for `?` below
+
     val system = ActorSystem()
 
-    val actor = system.actorOf(Props[MemcachedClientActor])
+    val ioActor = system.actorOf(Props[MemcachedIOActor])
 
-    override def set[T: Serializer](key: String, value: T, ttl: Duration) {
+    override def set[T: Serializer](key: String, value: T, ttl: Duration){
+        ioActor ! SetCommand(key,Serializer.serialize(value),ttl.toSeconds)
     }
 
     override def mset[T: Serializer](values: Map[String, T], ttl: Duration) {
+        val commands = values.map {
+            case (key, value) => {
+                SetCommand(key,Serializer.serialize(value),ttl.toSeconds)
+            }
+        }
+        ioActor ! commands
     }
 
     override def get[T: Deserializer](key: String): Future[Option[T]] = {
-        null 
+        val actor = system.actorOf(Props[MemcachedClientActor])
+        (actor ? GetCommand(key)).map(Deserializer.deserialize
     }
 
     override def mget[T: Deserializer](keys: Set[String]): Future[Map[String, T]] = {
-        null
+        val actor = system.actorOf(Props[MemcachedClientActor])
+        val commands = keys.map(GetCommand(_))
+        (actor ? commands).map(Deserializer.deserialize)
     }
 
     override def delete(keys: String*) {
+        val commands = keys.map(DeleteCommand(_))
+        ioActor ! commands
     }
 
 }
 
 object Tester {
-    implicit val timeout = Timeout(1 seconds) // needed for `?` below
+    implicit val timeout = Timeout(30 seconds) // needed for `?` below
     import akka.util.ByteString
 
     val system = ActorSystem()

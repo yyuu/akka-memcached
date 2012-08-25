@@ -2,7 +2,6 @@ package com.klout.akkamemcache
 
 import akka.actor.IO
 import akka.util.ByteString
-import com.klout.akkamemcache.{GetResult, Found}
 
 
 object Iteratees {
@@ -20,19 +19,6 @@ object Iteratees {
         (IO takeWhile continue) flatMap {
             case Value =>
                 processValue
-            case Deleted => {
-                println("DELETED")
-                IO takeUntil CRLF map { _ =>
-                    println("A key was deleted")
-                    None
-                }
-            }
-            case Stored => {
-                IO takeUntil CRLF map { _ =>
-                    println("A key was stored")
-                    None
-                }
-            }
             case Error => {
                 IO takeUntil CRLF map { _ =>
                     println("An error occurred")
@@ -43,13 +29,6 @@ object Iteratees {
                 println("END!")
                 IO takeUntil CRLF map { _ =>
                     println("Key not found")
-                    Some(com.klout.akkamemcache.NotFound("key"))
-                }
-            }
-
-            case NotFound => {
-                IO takeUntil CRLF map { _ => 
-                    println("Delete failed: key not found")
                     Some(com.klout.akkamemcache.NotFound("key"))
                 }
             }
@@ -121,11 +100,11 @@ object Protocol {
         def toByteString: ByteString
     }
     case class SetCommand(key: String, payload: ByteString, ttl: Long) extends Command {
-        override def toByteString = ByteString("set " + key + " " + ttl + " 0 " + payload.size) ++ CRLF ++ payload ++ CRLF
+        override def toByteString = ByteString("set " + key + " " + ttl + " 0 " + payload.size+ " noreply") ++ CRLF ++ payload ++ CRLF
     }
 
     case class DeleteCommand(key: String) extends Command {
-        override def toByteString = ByteString("delete "+key ) ++ CRLF
+        override def toByteString = ByteString("delete " + key + "noreply" ) ++ CRLF
     }
 
     case class GetCommand(key: String) extends Command {
