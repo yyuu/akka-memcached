@@ -4,6 +4,8 @@ import akka.actor.IO
 import akka.util.ByteString
 
 
+object Finished
+
 object Iteratees {
     import Constants._
     def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
@@ -15,7 +17,7 @@ object Iteratees {
         !whiteSpace.contains(byte)
     }
 
-    val readLine: IO.Iteratee[Option[GetResult]] = {
+    val readLine: IO.Iteratee[Option[Found]] = {
         (IO takeWhile continue) flatMap {
             case Value =>
                 processValue
@@ -26,10 +28,9 @@ object Iteratees {
                 }
             }
             case End => {
-                println("END!")
                 IO takeUntil CRLF map { _ =>
-                    println("Key not found")
-                    Some(com.klout.akkamemcache.NotFound("key"))
+                    ioActor ! Finished
+                    None
                 }
             }
 
@@ -43,7 +44,7 @@ object Iteratees {
         }
     }
 
-    val processValue: IO.Iteratee[Option[GetResult]] =
+    val processValue: IO.Iteratee[Option[Found]] =
         for {
             _ <- IO take 1
             key <- IO takeUntil Space
@@ -51,7 +52,6 @@ object Iteratees {
             length <- IO takeUntil CRLF map (ascii(_).toInt)
             value <- IO take length
             newline <- IO takeUntil CRLF
-            end <- IO takeUntil CRLF
         } yield {
             // println ("key: [%s], length: [%d], value: [%s]".format(key, length, value))
             Some(Found(ascii(key),value))
@@ -60,8 +60,8 @@ object Iteratees {
     val processLine: IO.Iteratee[Unit] = {
         IO repeat{
             readLine map {
-                case Some(getResult) => {
-                    ioActor ! getResult
+                case Some(found) => {
+                    ioActor ! found
                 }
                 case _ => {}
             }
@@ -104,7 +104,7 @@ object Protocol {
     }
 
     case class DeleteCommand(key: String) extends Command {
-        override def toByteString = ByteString("delete " + key + "noreply" ) ++ CRLF
+        override def toByteString = ByteString("delete " + key + " noreply" ) ++ CRLF
     }
 
     case class GetCommand(key: String) extends Command {

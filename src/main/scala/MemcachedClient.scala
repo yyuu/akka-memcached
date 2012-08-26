@@ -48,13 +48,21 @@ class RealMemcachedClient extends MemcachedClient {
 
     override def get[T: Deserializer](key: String): Future[Option[T]] = {
         val actor = system.actorOf(Props[MemcachedClientActor])
-        (actor ? GetCommand(key)).map(Deserializer.deserialize
+        (actor ? GetCommand(key)).map{
+            case result:Option[ByteString] => result map(Deserializer.deserialize[T])
+            case other => throw new Exception("Invalid result returned: "+other)
+        }
     }
 
     override def mget[T: Deserializer](keys: Set[String]): Future[Map[String, T]] = {
         val actor = system.actorOf(Props[MemcachedClientActor])
         val commands = keys.map(GetCommand(_))
-        (actor ? commands).map(Deserializer.deserialize)
+        (actor ? commands).map{
+            case result:Map[String,ByteString] => result map {
+                case (key, value) => (key, Deserializer.deserialize[T](value))
+            }
+            case other => throw new Exception("Invalid result returned: "+other)
+        }
     }
 
     override def delete(keys: String*) {
@@ -86,9 +94,10 @@ object Tester {
     }
 
     def main(args: Array[String]) {
-        doCommand(GetCommand("blah")) 
+        doCommand(GetCommand("blah"))
         doCommand(GetCommand("blah2"))
         doCommand(GetCommand("blah3"))
+        Thread.sleep(250)
         doCommand(SetCommand("blah2",ByteString("abc"),0))
         doCommand(DeleteCommand("blah4"))
     }
