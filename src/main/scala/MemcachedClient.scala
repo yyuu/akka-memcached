@@ -33,14 +33,14 @@ class RealMemcachedClient extends MemcachedClient {
 
     val ioActor = system.actorOf(Props[MemcachedIOActor])
 
-    override def set[T: Serializer](key: String, value: T, ttl: Duration){
-        ioActor ! SetCommand(key,Serializer.serialize(value),ttl.toSeconds)
+    override def set[T: Serializer](key: String, value: T, ttl: Duration) {
+        ioActor ! SetCommand(key, Serializer.serialize(value), ttl.toSeconds)
     }
 
     override def mset[T: Serializer](values: Map[String, T], ttl: Duration) {
         val commands = values.map {
             case (key, value) => {
-                SetCommand(key,Serializer.serialize(value),ttl.toSeconds)
+                SetCommand(key, Serializer.serialize(value), ttl.toSeconds)
             }
         }
         ioActor ! commands
@@ -79,15 +79,14 @@ object Tester {
     val system = ActorSystem()
 
     val ioActor = system.actorOf(Props[MemcachedIOActor])
-    
 
     def doCommand(command: Command)(implicit timeout: Timeout) {
         command match {
-            case get:GetCommand => {
+            case get: GetCommand => {
                 val actor = system.actorOf(Props[MemcachedClientActor])
                 (actor ? command).map(result => println("Result: " + result))
             }
-            case other:Command => {
+            case other: Command => {
                 ioActor ! command
             }
         }
@@ -97,8 +96,7 @@ object Tester {
         doCommand(GetCommand("blah"))
         doCommand(GetCommand("blah2"))
         doCommand(GetCommand("blah3"))
-        Thread.sleep(250)
-        doCommand(SetCommand("blah2",ByteString("abc"),0))
+        doCommand(SetCommand("blah2", ByteString("abc"), 0))
         doCommand(DeleteCommand("blah4"))
     }
 }

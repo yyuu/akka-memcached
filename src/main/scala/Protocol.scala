@@ -3,7 +3,6 @@ package com.klout.akkamemcache
 import akka.actor.IO
 import akka.util.ByteString
 
-
 object Finished
 
 object Iteratees {
@@ -11,9 +10,9 @@ object Iteratees {
     def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
 
     val ioActor = Tester.ioActor
-    val whiteSpace = Set(' ','\r').map(_.toByte)
-    
-    def continue (byte: Byte): Boolean = {
+    val whiteSpace = Set(' ', '\r').map(_.toByte)
+
+    def continue(byte: Byte): Boolean = {
         !whiteSpace.contains(byte)
     }
 
@@ -35,9 +34,9 @@ object Iteratees {
             }
 
             case other => {
-                IO takeUntil CRLF map { 
+                IO takeUntil CRLF map {
                     data =>
-                        println("Unexpected output from Memcached: "+ ascii(other) + ". " + ascii(data))
+                        println("Unexpected output from Memcached: " + ascii(other) + ". " + ascii(data))
                         None
                 }
             }
@@ -48,17 +47,17 @@ object Iteratees {
         for {
             _ <- IO take 1
             key <- IO takeUntil Space
-            id  <- IO takeUntil Space
+            id <- IO takeUntil Space
             length <- IO takeUntil CRLF map (ascii(_).toInt)
             value <- IO take length
             newline <- IO takeUntil CRLF
         } yield {
             // println ("key: [%s], length: [%d], value: [%s]".format(key, length, value))
-            Some(Found(ascii(key),value))
+            Some(Found(ascii(key), value))
         }
 
     val processLine: IO.Iteratee[Unit] = {
-        IO repeat{
+        IO repeat {
             readLine map {
                 case Some(found) => {
                     ioActor ! found
@@ -67,7 +66,6 @@ object Iteratees {
             }
         }
     }
-
 
 }
 
@@ -89,8 +87,6 @@ object Constants {
 
     val End = ByteString("END")
 
-
-
 }
 
 object Protocol {
@@ -100,7 +96,7 @@ object Protocol {
         def toByteString: ByteString
     }
     case class SetCommand(key: String, payload: ByteString, ttl: Long) extends Command {
-        override def toByteString = ByteString("set " + key + " " + ttl + " 0 " + payload.size+ " noreply") ++ CRLF ++ payload ++ CRLF
+        override def toByteString = ByteString("set " + key + " " + ttl + " 0 " + payload.size + " noreply") ++ CRLF ++ payload ++ CRLF
     }
 
     case class DeleteCommand(key: String) extends Command {

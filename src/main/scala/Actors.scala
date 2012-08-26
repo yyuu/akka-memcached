@@ -4,14 +4,14 @@ import akka.actor._
 import akka.util.ByteString
 import java.net.InetSocketAddress
 import akka.dispatch.Future
-import com.klout.akkamemcache.Protocol._ 
+import com.klout.akkamemcache.Protocol._
 import scala.collection.mutable.HashMap
 import com.klout.akkamemcache.Protocol._
 
 class MemcachedIOActor extends Actor {
     def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
     implicit val ec = ActorSystem()
-    
+
     val port = 11211
 
     var connection: IO.SocketHandle = _
@@ -124,7 +124,7 @@ class MemcachedIOActor extends Actor {
 
     def receive = {
         case raw: ByteString =>
-            println("Raw: "+raw)
+            println("Raw: " + raw)
             connection write raw
 
         case get @ GetCommand(key) =>
@@ -133,7 +133,7 @@ class MemcachedIOActor extends Actor {
             writeGetCommandToMemcached()
             awaitingGetResponse = true
 
-        case delete @ DeleteCommand(key) => 
+        case delete @ DeleteCommand(key) =>
             println("Delete: " + key)
             connection write delete.toByteString
 
@@ -144,7 +144,7 @@ class MemcachedIOActor extends Actor {
         case IO.Read(socket, bytes) =>
             println("reading: " + ascii(bytes))
             iteratee(IO Chunk bytes)
-            iteratee.map{data =>  
+            iteratee.map{ data =>
                 Iteratees.processLine
             }
 
@@ -153,7 +153,7 @@ class MemcachedIOActor extends Actor {
                 case (actor, keys) =>
                     keys.map(_._1).contains(found.key)
             }.map(_._1)
-            requestingActors foreach { actor => 
+            requestingActors foreach { actor =>
                 actor ! found
             }
 
@@ -182,7 +182,6 @@ class MemcachedClientActor extends Actor {
     implicit val ec = ActorSystem()
     var originalSender: ActorRef = _
     val ioActor = Tester.ioActor
-
 
     def receive = {
         case command: GetCommand => {
