@@ -33,14 +33,14 @@ class RealMemcachedClient extends MemcachedClient {
 
     val ioActor = system.actorOf(Props[MemcachedIOActor])
 
-    override def set[T: Serializer](key: String, value: T, ttl: Duration){
-        ioActor ! SetCommand(key,Serializer.serialize(value),ttl.toSeconds)
+    override def set[T: Serializer](key: String, value: T, ttl: Duration) {
+        ioActor ! SetCommand(key, Serializer.serialize(value), ttl.toSeconds)
     }
 
     override def mset[T: Serializer](values: Map[String, T], ttl: Duration) {
         val commands = values.map {
             case (key, value) => {
-                SetCommand(key,Serializer.serialize(value),ttl.toSeconds)
+                SetCommand(key, Serializer.serialize(value), ttl.toSeconds)
             }
         }
         ioActor ! commands
@@ -48,13 +48,13 @@ class RealMemcachedClient extends MemcachedClient {
 
     override def get[T: Deserializer](key: String): Future[Option[T]] = {
         val actor = system.actorOf(Props[MemcachedClientActor])
-        (actor ? GetCommand(key)).map(Deserializer.deserialize
+        (actor ? GetCommand(key)) mapTo manifest[Option[ByteString]] map (_ map (Deserializer.deserialize[T]))
     }
 
     override def mget[T: Deserializer](keys: Set[String]): Future[Map[String, T]] = {
         val actor = system.actorOf(Props[MemcachedClientActor])
         val commands = keys.map(GetCommand(_))
-        (actor ? commands).map(Deserializer.deserialize)
+        (actor ? commands) mapTo manifest[Map[String, ByteString]] map (_ mapValues (Deserializer.deserialize[T]))
     }
 
     override def delete(keys: String*) {
@@ -71,25 +71,24 @@ object Tester {
     val system = ActorSystem()
 
     val ioActor = system.actorOf(Props[MemcachedIOActor])
-    
 
     def doCommand(command: Command)(implicit timeout: Timeout) {
         command match {
-            case get:GetCommand => {
+            case get: GetCommand => {
                 val actor = system.actorOf(Props[MemcachedClientActor])
                 (actor ? command).map(result => println("Result: " + result))
             }
-            case other:Command => {
+            case other: Command => {
                 ioActor ! command
             }
         }
     }
 
     def main(args: Array[String]) {
-        doCommand(GetCommand("blah")) 
+        doCommand(GetCommand("blah"))
         doCommand(GetCommand("blah2"))
         doCommand(GetCommand("blah3"))
-        doCommand(SetCommand("blah2",ByteString("abc"),0))
+        doCommand(SetCommand("blah2", ByteString("abc"), 0))
         doCommand(DeleteCommand("blah4"))
     }
 }

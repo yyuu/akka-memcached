@@ -8,7 +8,7 @@ trait Serializer[T] {
 
 object Serializer {
 
-	def serialize[T: Serializer](t: T): ByteString = implicitly[Serializer[T]] serialize t
+    def serialize[T: Serializer](t: T): ByteString = implicitly[Serializer[T]] serialize t
 }
 
 trait Deserializer[T] {
@@ -19,5 +19,5 @@ trait Deserializer[T] {
 
 object Deserializer {
 
-	def deserialize[T: Deserializer](bytes: ByteString): T = implicitly[Deserializer[T]] deserialize bytes
+    def deserialize[T: Deserializer](bytes: ByteString): T = implicitly[Deserializer[T]] deserialize bytes
 }
