@@ -102,7 +102,7 @@ object Protocol {
     }
 
     case class SetCommand(key: String, payload: ByteString, ttl: Long) extends Command {
-        override def toByteString = ByteString("set " + key + " " + ttl + " 0 " + payload.size + " noreply") ++ CRLF ++ payload ++ CRLF
+        override def toByteString = ByteString("set " + key + " 0 " + ttl + " " + payload.size + " noreply") ++ CRLF ++ payload ++ CRLF
     }
 
     case class DeleteCommand(keys: String*) extends Command {

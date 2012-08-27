@@ -14,43 +14,64 @@ class MemcachedClientSpec extends Specification with PendingUntilFixed {
 
     sequential
     "The memcached client" should {
-        "be able to set some values, and get them later" in {
-            client.set("key1", "value1", noTTL)
-            client.set("key2", "value2", noTTL)
-            val value1 = Await.result(client.get("key1"), timeout)
-            val value2 = Await.result(client.get("key2"), timeout)
+        "set some values, and get them later" in {
+            client.set[String]("key1", "value1", noTTL)
+            client.set[String]("key2", "value2", noTTL)
+            val value1 = Await.result(client.get[String]("key1"), timeout)
+            val value2 = Await.result(client.get[String]("key2"), timeout)
             value1 must_== Some("value1")
             value2 must_== Some("value2")
         }
-        "be able to use multiget to get values, and miss nonexistent values" in {
+        "use multiget to get values, and miss nonexistent values" in {
             val valueMap = Await.result(client.mget(Set("key1", "key2", "key3")), timeout)
             valueMap.get("key1") must_== Some("value1")
             valueMap.get("key2") must_== Some("value2")
             valueMap.get("key3") must beNone
         }
-        "be able to change existing values" in {
+        "change existing values" in {
             client.set("key1", "value3", noTTL)
             client.set("key2", "value4", noTTL)
             val valueMap = Await.result(client.mget(Set("key1", "key2")), timeout)
             valueMap.get("key1") must_== Some("value3")
             valueMap.get("key2") must_== Some("value4")
         }
-        "be able to delete a value" in {
+        "delete a value" in {
             client.delete("key1")
             val value1 = Await.result(client.get("key1"), timeout)
             value1 must beNone
         }
-        "be able to set multiple values" in {
+        "set multiple values" in {
             client.mset(Map("key4" -> "value4", "key5" -> "value5"), noTTL)
             val valueMap = Await.result(client.mget(Set("key4", "key5")), timeout)
             valueMap.get("key4") must_== Some("value4")
             valueMap.get("key5") must_== Some("value5")
         }
-        "be able to delete multiple values" in {
+        "delete multiple values" in {
             client.delete("key4", "key5")
             val valueMap = Await.result(client.mget(Set("key4", "key5")), timeout)
             valueMap.get("key4") must beNone
             valueMap.get("key5") must beNone
+        }
+        "use valid TTLs" in {
+            client.set("key6", "value6", Duration("2 seconds"))
+            Thread.sleep(1000)
+            val value6 = Await.result(client.get("key6"), timeout)
+            value6 must_== Some("value6")
+            Thread.sleep(1000)
+            val value6None = Await.result(client.get("key6"), timeout)
+            value6None must beNone
+        }
+        "handle many gets,sets, and deletes" in {
+            (1 to 10).foreach { _ =>
+                val keys = (1 to 100).map(_.toString)
+                val sets = (1 to 100).map{ num => num.toString -> (num + 1).toString }.toMap
+                client.mset(sets, noTTL)
+                val results = Await.result(client.mget[String](keys.toSet), timeout)
+                results.forall {
+                    case (key, value) => value.toInt must_== key.toInt + 1
+                }
+                client.delete(keys: _*)
+            }
         }
     }
 }
