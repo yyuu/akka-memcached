@@ -3,10 +3,12 @@ package com.klout.akkamemcache
 import akka.actor.IO
 import akka.util.ByteString
 
+// Object sent to the IOActor indicating that a multiget request is complete.
 object Finished
 
 object Iteratees {
     import Constants._
+
     def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
 
     val ioActor = Tester.ioActor
@@ -20,12 +22,14 @@ object Iteratees {
         (IO takeWhile continue) flatMap {
             case Value =>
                 processValue
+
             case Error => {
                 IO takeUntil CRLF map { _ =>
                     println("An error occurred")
                     None
                 }
             }
+
             case End => {
                 IO takeUntil CRLF map { _ =>
                     ioActor ! Finished

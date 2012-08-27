@@ -16,8 +16,8 @@ class MemcachedIOActor extends Actor {
 
     var connection: IO.SocketHandle = _
 
-    var currentMap: HashMap[ActorRef, Set[(String, Option[ByteString])]] = new HashMap
-    var nextMap: HashMap[ActorRef, Set[(String, Option[ByteString])]] = new HashMap
+    var currentMap: HashMap[ActorRef, Set[PotentialResult]] = new HashMap
+    var nextMap: HashMap[ActorRef, Set[PotentialResult]] = new HashMap
 
     override def preStart {
         connection = IOManager(context.system) connect new InetSocketAddress(port)
@@ -31,10 +31,10 @@ class MemcachedIOActor extends Actor {
      */
     def loadGetsToMap(actor: ActorRef, keys: Set[String]) {
         val map = if (awaitingGetResponse) nextMap else currentMap
-        val valuesToMap: Set[(String, Option[ByteString])] = keys map { key => (key -> None) }
+        val results: Set[PotentialResult] = keys.map(NotYetFound)
         map.get(actor) match {
-            case Some(existingKeys) => map += ((actor, existingKeys ++ valuesToMap))
-            case _                  => map += ((actor, valuesToMap))
+            case Some(existingResults) => map += ((actor, existingResults ++ results))
+            case _                     => map += ((actor, results))
         }
     }
 
@@ -44,16 +44,41 @@ class MemcachedIOActor extends Actor {
      */
     def sendNotFoundMessages() {
         val missingKeys: List[(ActorRef, String)] = currentMap.flatMap {
-            case (actor, keys) => keys.flatMap{
-                case (key, None) => Some((actor, key))
-                case _           => None
+            case (actor, results) => results.flatMap{
+                case NotYetFound(key) => Some((actor, key))
+                case _                => None
             }
         }.toList
         missingKeys.foreach {
             case (actor, key) => {
-                //println("Not found: " + actor + key)
                 actor ! NotFound(key)
             }
+        }
+    }
+
+    /**
+     * Sends Found messages for all actors who are interested in the found object.
+     * Updates the ioActor's map to indicate that the keys have been found
+     */
+    def sendFoundMessages(found: Found) {
+        val requestingActors = currentMap.flatMap{
+            case (actor, results) if (results.exists(_.key == found.key)) => Some(actor)
+            case _ => None
+        }
+
+        //println("requesting actors: " + requestingActors)
+
+        requestingActors foreach { actor =>
+            actor ! found
+        }
+
+        currentMap = currentMap.map{
+            case (actor, results) =>
+                val newKeys = results.map{
+                    case NotYetFound(key) if key == found.key => found
+                    case other                                => other
+                }
+                (actor, newKeys)
         }
     }
 
@@ -63,12 +88,12 @@ class MemcachedIOActor extends Actor {
      */
     def writeGetCommandToMemcachedIfPossible() {
         if (!awaitingGetResponse) {
-            val keys = currentMap.flatMap {
-                case (actor, keys) => keys.map(_._1)
+            val missingKeys = currentMap.flatMap {
+                case (actor, potentialResults) => potentialResults.map(_.key)
             }.toSet
 
-            if (keys.size > 0) {
-                connection.write(GetCommand(keys).toByteString)
+            if (missingKeys.size > 0) {
+                connection.write(GetCommand(missingKeys).toByteString)
                 awaitingGetResponse = true
             } else {
                 awaitingGetResponse = false
@@ -83,28 +108,28 @@ class MemcachedIOActor extends Actor {
      */
     def swapMaps() {
         val foundKeys: HashMap[String, ByteString] = currentMap.flatMap{
-            case (actor, keys) =>
-                keys.flatMap {
-                    case (key, Some(value)) => Some((key, value))
-                    case _                  => None
+            case (actor, results) =>
+                results.flatMap {
+                    case Found(key, value) => Some((key, value))
+                    case _                 => None
                 }
         }
         currentMap = nextMap
 
         currentMap.flatMap{
-            case (actor, keys) =>
-                keys.flatMap {
-                    case (key, valueOption) => foundKeys.get(key) match {
+            case (actor, results) =>
+                results.flatMap {
+                    case NotYetFound(key) => foundKeys.get(key) match {
                         case Some(value) => {
                             actor ! Found(key, value)
                             None
                         }
-                        case _ => Some((key, valueOption))
+                        case _ => Some(NotYetFound(key))
                     }
+                    case _ => None
                 }
         }
         nextMap = HashMap.empty
-        //println("The current map is: " + currentMap)
     }
 
     /**
@@ -132,11 +157,8 @@ class MemcachedIOActor extends Actor {
             writeGetCommandToMemcachedIfPossible()
             awaitingGetResponse = true
 
-        case delete @ DeleteCommand(keys) =>
-            connection write delete.toByteString
-
-        case set @ SetCommand(key, payload, ttl) =>
-            connection write set.toByteString
+        case command: Command =>
+            connection write command.toByteString
 
         case IO.Read(socket, bytes) =>
             iteratee(IO Chunk bytes)
@@ -144,27 +166,9 @@ class MemcachedIOActor extends Actor {
                 Iteratees.processLine
             }
 
-        case found: Found => {
-            val requestingActors = currentMap.filter{
-                case (actor, keys) =>
-                    keys.map(_._1).contains(found.key)
-            }.map(_._1)
+        case found: Found => sendFoundMessages(found)
 
-            requestingActors foreach { actor =>
-                actor ! found
-            }
-
-            currentMap = currentMap.map{
-                case (actor, keys) =>
-                    val newKeys = keys.map{
-                        case (found.key, None) => (found.key, Some(found.value))
-                        case other             => other
-                    }
-                    (actor, newKeys)
-            }
-        }
-
-        case Finished => getCommandCompleted()
+        case Finished     => getCommandCompleted()
     }
 
 }
@@ -173,9 +177,15 @@ sealed trait GetResult {
     def key: String
 }
 
-case class Found(key: String, value: ByteString) extends GetResult
+sealed trait PotentialResult {
+    def key: String
+}
+
+case class Found(key: String, value: ByteString) extends GetResult with PotentialResult
 
 case class NotFound(key: String) extends GetResult
+
+case class NotYetFound(key: String) extends PotentialResult
 
 class MemcachedClientActor extends Actor {
     implicit val ec = ActorSystem()
