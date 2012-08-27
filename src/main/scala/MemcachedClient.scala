@@ -54,9 +54,10 @@ class RealMemcachedClient extends MemcachedClient {
         val actor = system.actorOf(Props[MemcachedClientActor])
         val command = GetCommand(keys)
         (actor ? command).map{
-            case result: Map[String, ByteString] => result map {
-                case (key, value) => (key, Deserializer.deserialize[T](value))
-            }
+            case result: List[GetResult] => result.flatMap {
+                case Found(key, value) => Some(key, Deserializer.deserialize[T](value))
+                case NotFound(key)     => None
+            }.toMap
             case other => throw new Exception("Invalid result returned: " + other)
         }
     }
@@ -75,6 +76,7 @@ object Tester {
     val system = ActorSystem()
 
     val ioActor = system.actorOf(Props[MemcachedIOActor])
+    val client = new RealMemcachedClient
 
     def doCommand(command: Command)(implicit timeout: Timeout) {
         command match {
@@ -88,11 +90,18 @@ object Tester {
         }
     }
 
+    def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
+
+    implicit val x: Deserializer[String] = new Deserializer[String] {
+        def deserialize(bytes: ByteString): String = ascii(bytes)
+    }
+
     def main(args: Array[String]) {
-        doCommand(GetCommand(Set("blah", "blah2", "blah3")))
-        doCommand(GetCommand(Set("blah2")))
-        doCommand(GetCommand(Set("blah3")))
-        doCommand(SetCommand("blah2", ByteString("abc"), 0))
-        doCommand(DeleteCommand("blah4"))
+        client.mget[String](Set("blah", "blah2", "blah3")).map(println)
+        // doCommand(GetCommand(Set("blah", "blah2", "blah3")))
+        // doCommand(GetCommand(Set("blah2")))
+        // doCommand(GetCommand(Set("blah3")))
+        // doCommand(SetCommand("blah2", ByteString("abc"), 0))
+        // doCommand(DeleteCommand("blah4"))
     }
 }

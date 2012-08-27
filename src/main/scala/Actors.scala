@@ -149,6 +149,7 @@ class MemcachedIOActor extends Actor {
                 case (actor, keys) =>
                     keys.map(_._1).contains(found.key)
             }.map(_._1)
+
             requestingActors foreach { actor =>
                 actor ! found
             }
