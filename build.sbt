@@ -16,9 +16,6 @@ resolvers ++= Seq(	"Typesafe Repository" at "http://repo.typesafe.com/typesafe/r
 					"snapshots" at "http://oss.sonatype.org/content/repositories/snapshots",
                     "releases"  at "http://oss.sonatype.org/content/repositories/releases")
 
-
-scalacOptions += "-unchecked"
-
 scalariformSettings ++ Seq(
     ScalariformKeys.preferences := FormattingPreferences().
     setPreference(AlignParameters, true).

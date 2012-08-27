@@ -43,12 +43,12 @@ class MemcachedIOActor extends Actor {
      * have a value. This should be used after memcached has sent END
      */
     def sendNotFoundMessages() {
-        val missingKeys: List[(ActorRef, String)] = currentMap.flatMap {
+        val missingKeys: List[(ActorRef, String)] = currentMap.toList.flatMap {
             case (actor, results) => results.flatMap{
                 case NotYetFound(key) => Some((actor, key))
                 case _                => None
             }
-        }.toList
+        }
         missingKeys.foreach {
             case (actor, key) => {
                 actor ! NotFound(key)
@@ -157,8 +157,13 @@ class MemcachedIOActor extends Actor {
             writeGetCommandToMemcachedIfPossible()
             awaitingGetResponse = true
 
-        case command: Command =>
+        case command: DeleteCommand =>
             connection write command.toByteString
+
+        case commands: List[SetCommand] => {
+            val toWrite: ByteString = commands.foldLeft(ByteString())(_ ++ _.toByteString)
+            connection write toWrite
+        }
 
         /* Response from Memcached */
         case IO.Read(socket, bytes) =>

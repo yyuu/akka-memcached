@@ -34,7 +34,7 @@ class RealMemcachedClient extends MemcachedClient {
     val ioActor = system.actorOf(Props[MemcachedIOActor])
 
     override def set[T: Serializer](key: String, value: T, ttl: Duration) {
-        mset(Map(key -> value))
+        mset(Map(key -> value), ttl)
     }
 
     override def mset[T: Serializer](values: Map[String, T], ttl: Duration) {
@@ -88,12 +88,6 @@ object Tester {
                 ioActor ! command
             }
         }
-    }
-
-    def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
-
-    implicit val x: Deserializer[String] = new Deserializer[String] {
-        def deserialize(bytes: ByteString): String = ascii(bytes)
     }
 
     def main(args: Array[String]) {
