@@ -66,8 +66,6 @@ class MemcachedIOActor extends Actor {
             case _ => None
         }
 
-        //println("requesting actors: " + requestingActors)
-
         requestingActors foreach { actor =>
             actor ! found
         }
