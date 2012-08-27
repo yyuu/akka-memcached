@@ -89,7 +89,7 @@ object Tester {
     }
 
     def main(args: Array[String]) {
-        doCommand(GetCommand(Set("blah")))
+        doCommand(GetCommand(Set("blah", "blah2", "blah3")))
         doCommand(GetCommand(Set("blah2")))
         doCommand(GetCommand(Set("blah3")))
         doCommand(SetCommand("blah2", ByteString("abc"), 0))

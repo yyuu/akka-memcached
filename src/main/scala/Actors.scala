@@ -91,18 +91,18 @@ class MemcachedIOActor extends Actor {
         }
         currentMap = nextMap
 
-        // currentMap.flatMap{
-        //     case (actor, keys) =>
-        //         keys.flatMap {
-        //             case (key, valueOption) => foundKeys.get(key) match {
-        //                 case Some(value) => {
-        //                     actor ! Found(key, value)
-        //                     None
-        //                 }
-        //                 case _ => Some((key, valueOption))
-        //             }
-        //         }
-        // }
+        currentMap.flatMap{
+            case (actor, keys) =>
+                keys.flatMap {
+                    case (key, valueOption) => foundKeys.get(key) match {
+                        case Some(value) => {
+                            actor ! Found(key, value)
+                            None
+                        }
+                        case _ => Some((key, valueOption))
+                    }
+                }
+        }
         nextMap = HashMap.empty
         //println("The current map is: " + currentMap)
     }
@@ -113,7 +113,6 @@ class MemcachedIOActor extends Actor {
      */
     def getCommandCompleted() {
         awaitingGetResponse = false
-        //println("Get command completed")
         sendNotFoundMessages()
         swapMaps()
         writeGetCommandToMemcachedIfPossible()
@@ -169,7 +168,9 @@ class MemcachedIOActor extends Actor {
 
 }
 
-sealed trait GetResult
+sealed trait GetResult {
+    def key: String
+}
 
 case class Found(key: String, value: ByteString) extends GetResult
 
@@ -180,11 +181,25 @@ class MemcachedClientActor extends Actor {
     var originalSender: ActorRef = _
     val ioActor = Tester.ioActor
 
+    var getMap: HashMap[String, Option[GetResult]] = new HashMap
+
+    def maybeSendResponse() = {
+        if (!getMap.values.toList.contains(None)) originalSender ! getMap.values.flatten
+    }
+
     def receive = {
-        case command: GetCommand => {
+        case command @ GetCommand(keys) => {
             originalSender = sender
+            getMap ++= keys.map {
+                key =>
+                    key -> None
+            }
             ioActor ! command
         }
-        case result: GetResult => originalSender ! result
+        case result: GetResult => {
+            getMap -= result.key
+            getMap += ((result.key, Some(result)))
+            maybeSendResponse()
+        }
     }
 }
