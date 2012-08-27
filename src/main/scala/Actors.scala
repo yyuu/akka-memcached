@@ -143,7 +143,7 @@ class MemcachedIOActor extends Actor {
         writeGetCommandToMemcachedIfPossible()
     }
 
-    val iteratee = Iteratees.processLine
+    val iteratee = new Iteratees(self).processLine
 
     var awaitingGetResponse = false
 
@@ -169,7 +169,7 @@ class MemcachedIOActor extends Actor {
         case IO.Read(socket, bytes) =>
             iteratee(IO Chunk bytes)
             iteratee.map{ data =>
-                Iteratees.processLine
+                new Iteratees(self).processLine
             }
 
         /* A single get result has been returned */
@@ -181,30 +181,11 @@ class MemcachedIOActor extends Actor {
 
 }
 
-/* Stores the result of a Memcached get that has already been executed */
-sealed trait GetResult {
-    def key: String
-}
-
-/* Stores the result of a Memcached get that may not yet have been executed */
-sealed trait PotentialResult {
-    def key: String
-}
-
-case class Found(key: String, value: ByteString) extends GetResult with PotentialResult
-
-/* This indicates a cache miss */
-case class NotFound(key: String) extends GetResult
-
-/* This class indicates that no result is currently available for
- * the given key. This is either a cache miss, or Memcache has not
- * yet responded */
-case class NotYetFound(key: String) extends PotentialResult
-
 class MemcachedClientActor extends Actor {
     implicit val ec = ActorSystem()
     var originalSender: ActorRef = _
-    val ioActor = Tester.ioActor
+
+    var ioActor: ActorRef = _
 
     var getMap: HashMap[String, Option[GetResult]] = new HashMap
 
@@ -234,5 +215,29 @@ class MemcachedClientActor extends Actor {
             getMap += ((result.key, Some(result)))
             maybeSendResponse()
         }
+
+        case ioActor: ActorRef => {
+            this.ioActor = ioActor
+        }
     }
 }
+
+/* Stores the result of a Memcached get that has already been executed */
+sealed trait GetResult {
+    def key: String
+}
+
+/* Stores the result of a Memcached get that may not yet have been executed */
+sealed trait PotentialResult {
+    def key: String
+}
+
+case class Found(key: String, value: ByteString) extends GetResult with PotentialResult
+
+/* This indicates a cache miss */
+case class NotFound(key: String) extends GetResult
+
+/* This class indicates that no result is currently available for
+ * the given key. This is either a cache miss, or Memcache has not
+ * yet responded */
+case class NotYetFound(key: String) extends PotentialResult

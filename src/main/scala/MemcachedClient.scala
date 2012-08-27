@@ -52,6 +52,7 @@ class RealMemcachedClient extends MemcachedClient {
 
     override def mget[T: Deserializer](keys: Set[String]): Future[Map[String, T]] = {
         val actor = system.actorOf(Props[MemcachedClientActor])
+        actor ! ioActor // Associate the ioActor in MemcachedClient with this actor
         val command = GetCommand(keys)
         (actor ? command).map{
             case result: List[GetResult] => result.flatMap {
@@ -67,35 +68,4 @@ class RealMemcachedClient extends MemcachedClient {
         ioActor ! commands
     }
 
-}
-
-object Tester {
-    implicit val timeout = Timeout(30 seconds) // needed for `?` below
-    import akka.util.ByteString
-
-    val system = ActorSystem()
-
-    val ioActor = system.actorOf(Props[MemcachedIOActor])
-    val client = new RealMemcachedClient
-
-    def doCommand(command: Command)(implicit timeout: Timeout) {
-        command match {
-            case get: GetCommand => {
-                val actor = system.actorOf(Props[MemcachedClientActor])
-                (actor ? command).map(result => println("Result: " + result))
-            }
-            case other: Command => {
-                ioActor ! command
-            }
-        }
-    }
-
-    def main(args: Array[String]) {
-        client.mget[String](Set("blah", "blah2", "blah3")).map(println)
-        client.get[String]("blah").map(println)
-        // doCommand(GetCommand(Set("blah2")))
-        // doCommand(GetCommand(Set("blah3")))
-        // doCommand(SetCommand("blah2", ByteString("abc"), 0))
-        // doCommand(DeleteCommand("blah4"))
-    }
 }

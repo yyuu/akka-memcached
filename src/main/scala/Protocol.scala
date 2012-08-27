@@ -2,16 +2,16 @@ package com.klout.akkamemcache
 
 import akka.actor.IO
 import akka.util.ByteString
+import akka.actor._
 
 // Object sent to the IOActor indicating that a multiget request is complete.
 object Finished
 
-object Iteratees {
+class Iteratees(ioActor: ActorRef) {
     import Constants._
 
     def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
 
-    val ioActor = Tester.ioActor
     val whiteSpace = Set(' ', '\r').map(_.toByte)
 
     def continue(byte: Byte): Boolean = {
