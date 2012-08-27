@@ -29,7 +29,7 @@ class MemcachedIOActor extends Actor {
      * placed in a queued map, and will be executed after the current request
      * is completed
      */
-    def loadGetsToMap(actor: ActorRef, keys: Set[String]) {
+    def enqueueCommand(actor: ActorRef, keys: Set[String]) {
         val map = if (awaitingGetResponse) nextMap else currentMap
         val results: Set[PotentialResult] = keys.map(NotYetFound)
         map.get(actor) match {
@@ -153,38 +153,47 @@ class MemcachedIOActor extends Actor {
             connection write raw
 
         case get @ GetCommand(keys) =>
-            loadGetsToMap(sender, keys)
+            enqueueCommand(sender, keys)
             writeGetCommandToMemcachedIfPossible()
             awaitingGetResponse = true
 
         case command: Command =>
             connection write command.toByteString
 
+        /* Response from Memcached */
         case IO.Read(socket, bytes) =>
             iteratee(IO Chunk bytes)
             iteratee.map{ data =>
                 Iteratees.processLine
             }
 
+        /* A single get result has been returned */
         case found: Found => sendFoundMessages(found)
 
+        /* A multiget has completed */
         case Finished     => getCommandCompleted()
     }
 
 }
 
+/* Stores the result of a Memcached get that has already been executed */
 sealed trait GetResult {
     def key: String
 }
 
+/* Stores the result of a Memcached get that may not yet have been executed */
 sealed trait PotentialResult {
     def key: String
 }
 
 case class Found(key: String, value: ByteString) extends GetResult with PotentialResult
 
+/* This indicates a cache miss */
 case class NotFound(key: String) extends GetResult
 
+/* This class indicates that no result is currently available for
+ * the given key. This is either a cache miss, or Memcache has not
+ * yet responded */
 case class NotYetFound(key: String) extends PotentialResult
 
 class MemcachedClientActor extends Actor {
@@ -194,11 +203,16 @@ class MemcachedClientActor extends Actor {
 
     var getMap: HashMap[String, Option[GetResult]] = new HashMap
 
+    /**
+     * Sends the response back if the memcache command has completed
+     */
     def maybeSendResponse() = {
         if (!getMap.values.toList.contains(None)) originalSender ! getMap.values.flatten
     }
 
     def receive = {
+
+        /* This is a command to fetch results from Memcached */
         case command @ GetCommand(keys) => {
             originalSender = sender
             getMap ++= keys.map {
@@ -207,6 +221,9 @@ class MemcachedClientActor extends Actor {
             }
             ioActor ! command
         }
+
+        /* This is a partial result from Memcached. This actor will continue to accept 
+         * messages until it has recieved all of the results it needs */
         case result: GetResult => {
             getMap -= result.key
             getMap += ((result.key, Some(result)))

@@ -98,7 +98,7 @@ object Tester {
 
     def main(args: Array[String]) {
         client.mget[String](Set("blah", "blah2", "blah3")).map(println)
-        // doCommand(GetCommand(Set("blah", "blah2", "blah3")))
+        client.get[String]("blah").map(println)
         // doCommand(GetCommand(Set("blah2")))
         // doCommand(GetCommand(Set("blah3")))
         // doCommand(SetCommand("blah2", ByteString("abc"), 0))
