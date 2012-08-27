@@ -48,11 +48,12 @@ object Iteratees {
             _ <- IO take 1
             key <- IO takeUntil Space
             id <- IO takeUntil Space
-            length <- IO takeUntil CRLF map (ascii(_).toInt)
+            length <- IO takeUntil Space map (ascii(_).toInt)
+            cas <- IO takeUntil CRLF
             value <- IO take length
             newline <- IO takeUntil CRLF
         } yield {
-            // println ("key: [%s], length: [%d], value: [%s]".format(key, length, value))
+            //println ("key: [%s], length: [%d], value: [%s]".format(key, length, value))
             Some(Found(ascii(key), value))
         }
 
@@ -95,16 +96,22 @@ object Protocol {
     trait Command {
         def toByteString: ByteString
     }
+
     case class SetCommand(key: String, payload: ByteString, ttl: Long) extends Command {
         override def toByteString = ByteString("set " + key + " " + ttl + " 0 " + payload.size + " noreply") ++ CRLF ++ payload ++ CRLF
     }
 
-    case class DeleteCommand(key: String) extends Command {
-        override def toByteString = ByteString("delete " + key + " noreply" ) ++ CRLF
+    case class DeleteCommand(keys: String*) extends Command {
+        override def toByteString = {
+            val command = keys.map {
+                "delete " + _ + " noreply" + "\r\n"
+            } mkString ""
+            ByteString(command)
+        }
     }
 
-    case class GetCommand(key: String) extends Command {
-        override def toByteString = ByteString("get " + key) ++ CRLF
+    case class GetCommand(keys: Set[String]) extends Command {
+        override def toByteString = ByteString("gets " + (keys mkString " ")) ++ CRLF
     }
 
 }

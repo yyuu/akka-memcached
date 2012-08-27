@@ -34,7 +34,7 @@ class RealMemcachedClient extends MemcachedClient {
     val ioActor = system.actorOf(Props[MemcachedIOActor])
 
     override def set[T: Serializer](key: String, value: T, ttl: Duration) {
-        ioActor ! SetCommand(key, Serializer.serialize(value), ttl.toSeconds)
+        mset(Map(key -> value))
     }
 
     override def mset[T: Serializer](values: Map[String, T], ttl: Duration) {
@@ -47,26 +47,22 @@ class RealMemcachedClient extends MemcachedClient {
     }
 
     override def get[T: Deserializer](key: String): Future[Option[T]] = {
-        val actor = system.actorOf(Props[MemcachedClientActor])
-        (actor ? GetCommand(key)).map{
-            case result:Option[ByteString] => result map(Deserializer.deserialize[T])
-            case other => throw new Exception("Invalid result returned: "+other)
-        }
+        mget(Set(key)).map(_.get(key))
     }
 
     override def mget[T: Deserializer](keys: Set[String]): Future[Map[String, T]] = {
         val actor = system.actorOf(Props[MemcachedClientActor])
-        val commands = keys.map(GetCommand(_))
-        (actor ? commands).map{
-            case result:Map[String,ByteString] => result map {
+        val command = GetCommand(keys)
+        (actor ? command).map{
+            case result: Map[String, ByteString] => result map {
                 case (key, value) => (key, Deserializer.deserialize[T](value))
             }
-            case other => throw new Exception("Invalid result returned: "+other)
+            case other => throw new Exception("Invalid result returned: " + other)
         }
     }
 
     override def delete(keys: String*) {
-        val commands = keys.map(DeleteCommand(_))
+        val commands = DeleteCommand(keys: _*)
         ioActor ! commands
     }
 
@@ -93,9 +89,9 @@ object Tester {
     }
 
     def main(args: Array[String]) {
-        doCommand(GetCommand("blah"))
-        doCommand(GetCommand("blah2"))
-        doCommand(GetCommand("blah3"))
+        doCommand(GetCommand(Set("blah")))
+        doCommand(GetCommand(Set("blah2")))
+        doCommand(GetCommand(Set("blah3")))
         doCommand(SetCommand("blah2", ByteString("abc"), 0))
         doCommand(DeleteCommand("blah4"))
     }
