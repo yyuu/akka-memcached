@@ -5,6 +5,10 @@ import org.specs2.mutable._
 import akka.util.duration._
 import akka.util.Duration
 import akka.dispatch.Await
+import scala.reflect.BeanProperty
+
+case class TestClass(@BeanProperty test1: String,
+                     @BeanProperty test2: Map[String, Int])
 
 class MemcachedClientSpec extends Specification with PendingUntilFixed {
 
@@ -15,8 +19,8 @@ class MemcachedClientSpec extends Specification with PendingUntilFixed {
     sequential
     "The memcached client" should {
         "set some values, and get them later" in {
-            client.set[String]("key1", "value1", noTTL)
-            client.set[String]("key2", "value2", noTTL)
+            client.set("key1", "value1", noTTL)
+            client.set("key2", "value2", noTTL)
             val value1 = Await.result(client.get[String]("key1"), timeout)
             val value2 = Await.result(client.get[String]("key2"), timeout)
             value1 must_== Some("value1")
@@ -73,5 +77,22 @@ class MemcachedClientSpec extends Specification with PendingUntilFixed {
                 client.delete(keys: _*)
             }
         }
+        "serialize and deserialize maps and lists" in {
+            val map = ('a' to 'z').map{
+                letter => letter -> letter.toInt
+            }.toMap
+            val list = 1 to 100
+            client.mset(Map("map1" -> map, "list1" -> list), noTTL)
+            val results = Await.result(client.mget(Set("map1", "list1")), timeout)
+            results.get("map1") must_== Some(map)
+            results.get("list1") must_== Some(list)
+        }
+        "serialize case classes" in {
+            val testObject = TestClass("Foo", Map("Bar1" -> 1, "Bar2" -> 2))
+            client.set("testObject", testObject, noTTL)
+            val result = Await.result(client.get("testObject"), timeout)
+            result must_== Some(testObject)
+        }
+
     }
 }

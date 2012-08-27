@@ -34,7 +34,7 @@ object Serializer {
 
     def serialize[T: Serializer](t: T): ByteString = implicitly[Serializer[T]] serialize t
 
-    implicit def any[T <: Any] = new Serializer[T] {
+    implicit def any[T <: AnyRef] = new Serializer[T] {
         def serialize(o: T): ByteString = {
             Option(o) match {
                 case None => throw new NullPointerException("Can't serialize null")
@@ -43,7 +43,7 @@ object Serializer {
                         val bos = new ByteArrayOutputStream
                         val os = new JBossObjectOutputStream(bos)
                         val byteArray = using (bos, os) {
-                            os writeObject (o.asInstanceOf[Object])
+                            os writeObject o
                             bos.toByteArray
                         }
                         ByteString(byteArray)
