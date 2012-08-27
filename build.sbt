@@ -7,9 +7,17 @@ version := "0.1"
 
 scalaVersion := "2.9.1"
 
-resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
- 
-libraryDependencies += "com.typesafe.akka" % "akka-actor" % "2.0.3"
+libraryDependencies ++= Seq(
+	"com.typesafe.akka" % "akka-actor" % "2.0.3",
+  	"org.specs2" %% "specs2" % "1.12.1" % "test"
+)
+
+resolvers ++= Seq(	"Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
+					"snapshots" at "http://oss.sonatype.org/content/repositories/snapshots",
+                    "releases"  at "http://oss.sonatype.org/content/repositories/releases")
+
+
+scalacOptions += "-unchecked"
 
 scalariformSettings ++ Seq(
     ScalariformKeys.preferences := FormattingPreferences().
@@ -19,3 +27,4 @@ scalariformSettings ++ Seq(
     setPreference(PreserveDanglingCloseParenthesis, true).
     setPreference(PreserveSpaceBeforeArguments, true)
 )
+
