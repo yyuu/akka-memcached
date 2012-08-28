@@ -5,6 +5,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable
 import java.io.IOException
+import java.util.Calendar
 
 trait Serializer[T] {
 
@@ -36,12 +37,14 @@ object Serializer {
 
     implicit def any[T <: AnyRef] = new Serializer[T] {
         def serialize(o: T): ByteString = {
-            Option(o) match {
+            val before = Calendar.getInstance().getTimeInMillis
+            val result = Option(o) match {
                 case None => throw new NullPointerException("Can't serialize null")
                 case Some(o) =>
                     try {
                         val bos = new ByteArrayOutputStream
                         val os = new JBossObjectOutputStream(bos)
+
                         val byteArray = using (bos, os) {
                             os writeObject o
                             bos.toByteArray
@@ -55,6 +58,11 @@ object Serializer {
                         }
                     }
             }
+            val after = Calendar.getInstance().getTimeInMillis
+
+            if (after - before > 1)
+                println("Serialization time: " + (after - before))
+            result
         }
     }
 }

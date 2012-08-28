@@ -57,9 +57,13 @@ class JbossSerializingTranscoder extends SerializingTranscoder {
 
 object PerformanceTest {
 
-    val bigMap = (1 to 1000).map(num => num.toString -> ("String #" + num)) toMap
-    val bigList = (1 to 1000).map("String #" + _)
-    val bigMapOfLists = (1 to 100).map(num => num.toString -> (bigList take num)) toMap
+    val bigMapAkka = (1 to 1000).map(num => "Akka" + num.toString -> ("String #" + num)) toMap
+    val bigListAkka = (1 to 1000).map("Akka String #" + _)
+    val bigMapOfListsAkka = (1 to 100).map(num => "Akka" + num.toString -> (bigListAkka take num)) toMap
+
+    val bigMapSpy = (1 to 1000).map(num => "Spy" + num.toString -> ("String #" + num)) toMap
+    val bigListSpy = (1 to 1000).map("Spy String #" + _)
+    val bigMapOfListsSpy = (1 to 100).map(num => "Spy" + num.toString -> (bigListSpy take num)) toMap
 
     val akkaClient = new RealMemcachedClient()
 
@@ -75,19 +79,19 @@ object PerformanceTest {
     class AkkaMemcachedTests(testName: String) extends TestCase(testName) {
         def akkaSetAndGetSingleString() {
             akkaClient.set("akkatest", "Test", 0 seconds)
-            Await.result(akkaClient.get[String]("akkatest"), 1 second)
+            Await.result(akkaClient.get[String]("akkatest"), 5 seconds)
         }
         def akkaSetAndGetManyStrings() {
-            akkaClient.mset(bigMap, 0 seconds)
-            Await.result(akkaClient.mget[String](bigMap.keys.toSet), 1 second)
+            akkaClient.mset(bigMapAkka, 0 seconds)
+            Await.result(akkaClient.mget[String](bigMapAkka.keys.toSet), 5 seconds)
         }
         def akkaSetAndGetSingleBigObject() {
-            akkaClient.set("akkaBigObject", bigMap, 0 seconds)
-            Await.result(akkaClient.get[Map[String, String]]("akkaBigObject"), 1 second)
+            akkaClient.set("akkaBigObject", bigMapAkka, 0 seconds)
+            Await.result(akkaClient.get[Map[String, String]]("akkaBigObject"), 5 seconds)
         }
         def akkaSetAndGetManyBigObjects() {
-            akkaClient.mset(bigMapOfLists, 0 seconds)
-            Await.result(akkaClient.mget[List[String]](bigMapOfLists.keys.toSet), 30 seconds)
+            akkaClient.mset(bigMapOfListsAkka, 0 seconds)
+            Await.result(akkaClient.mget[List[String]](bigMapOfListsAkka.keys.toSet), 5 seconds)
         }
     }
 
@@ -97,20 +101,20 @@ object PerformanceTest {
             spyClient.get("spytest")
         }
         def spySetAndGetManyStrings() {
-            bigMap.foreach {
+            bigMapSpy.foreach {
                 case (key, value) => spyClient.set(key, 0, value)
             }
-            spyClient.getBulk(bigMap.keys)
+            spyClient.getBulk(bigMapSpy.keys)
         }
         def spySetAndGetSingleBigObject() {
-            spyClient.set("spyBigObject", 0, bigMap)
+            spyClient.set("spyBigObject", 0, bigMapSpy)
             spyClient.get("spyBigObject")
         }
         def spySetAndGetManyBigObjects() {
-            bigMapOfLists foreach {
+            bigMapOfListsSpy foreach {
                 case (key, value) => spyClient.set(key, 0, value)
             }
-            spyClient.getBulk(bigMapOfLists.keys)
+            spyClient.getBulk(bigMapOfListsSpy.keys)
         }
     }
     def suite: Test = {
