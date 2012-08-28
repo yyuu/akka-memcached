@@ -141,7 +141,7 @@ class MemcachedIOActor extends Actor {
         writeGetCommandToMemcachedIfPossible()
     }
 
-    val iteratee = new Iteratees(self).processLine
+    val iteratee = IO.IterateeRef.async(new Iteratees(self).processLine)(context.dispatcher)
 
     var awaitingGetResponse = false
 
@@ -166,10 +166,6 @@ class MemcachedIOActor extends Actor {
         /* Response from Memcached */
         case IO.Read(socket, bytes) =>
             iteratee(IO Chunk bytes)
-        //println(ascii(bytes))
-        // iteratee.map{ data =>
-        //     new Iteratees(self).processLine
-        // }
 
         /* A single get result has been returned */
         case found: Found => sendFoundMessages(found)

@@ -18,10 +18,9 @@ class Iteratees(ioActor: ActorRef) {
         !whiteSpace.contains(byte)
     }
 
-    val readLine: IO.Iteratee[Option[Found]] = {
+    val readLine = {
         (IO takeWhile continue) flatMap {
             case Value =>
-                println("about to process value")
                 processValue
 
             case Error => {
@@ -48,38 +47,25 @@ class Iteratees(ioActor: ActorRef) {
         }
     }
 
-    val processValue: IO.Iteratee[Option[Found]] =
+    val processValue = {
         for {
-            foo <- IO takeUntil Space;
-            val a = println("foo: " + foo)
+            whitespace <- IO takeUntil Space;
             key <- IO takeUntil Space;
-            val b = println("key: " + key)
             id <- IO takeUntil Space;
-            val c = println("id: " + id)
             length <- IO takeUntil Space map (ascii(_).toInt);
-            val d = println("length: " + length)
-            cas <- {
-                println("about to try to take cas")
-                val result = IO takeUntil CRLF;
-                println("done taking cas: " + result)
-                result
-            }
-            val e = println("cas: " + cas)
+            cas <- IO takeUntil CRLF;
             value <- IO take length;
-            val x = println("value: " + value)
             newline <- IO takeUntil CRLF
         } yield {
-            //println ("key: [%s], length: [%d], value: [%s]".format(ascii(key), length, value))
-            val found = Some(Found(ascii(key), value))
-            println("found:" + found)
+            val found = Found(ascii(key), value)
             IO Done found
         }
+    }
 
-    val processLine: IO.Iteratee[Unit] = {
+    val processLine = {
         IO repeat {
-            println("repeating")
             readLine map {
-                case Some(found) => {
+                case IO.Done(found) => {
                     ioActor ! found
                 }
                 case _ => {}
