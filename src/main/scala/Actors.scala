@@ -166,9 +166,10 @@ class MemcachedIOActor extends Actor {
         /* Response from Memcached */
         case IO.Read(socket, bytes) =>
             iteratee(IO Chunk bytes)
-            iteratee.map{ data =>
-                new Iteratees(self).processLine
-            }
+        //println(ascii(bytes))
+        // iteratee.map{ data =>
+        //     new Iteratees(self).processLine
+        // }
 
         /* A single get result has been returned */
         case found: Found => sendFoundMessages(found)
