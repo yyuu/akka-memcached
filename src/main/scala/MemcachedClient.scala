@@ -27,7 +27,7 @@ trait MemcachedClient {
 }
 
 class RealMemcachedClient extends MemcachedClient {
-    implicit val timeout = Timeout(30 seconds) // needed for `?` below
+    implicit val timeout = Timeout(1 seconds) // needed for `?` below
 
     val system = ActorSystem()
 
@@ -55,11 +55,9 @@ class RealMemcachedClient extends MemcachedClient {
     }
 
     override def mget[T: Deserializer](keys: Set[String]): Future[Map[String, T]] = {
-        val actor = system.actorOf(Props(new MemcachedClientActor(poolActor)))
         val command = GetCommand(keys)
-        (actor ? command).map{
+        (poolActor ? command).map{
             case result: List[GetResult] => {
-                system.stop(actor)
                 result.flatMap {
                     case Found(key, value) => Some(key, Deserializer.deserialize[T](value))
                     case NotFound(key)     => None
