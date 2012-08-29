@@ -3,6 +3,7 @@ package com.klout.akkamemcache
 import akka.actor.IO
 import akka.util.ByteString
 import akka.actor._
+import com.google.common.hash.Hashing._
 
 // Object sent to the IOActor indicating that a multiget request is complete.
 object Finished
@@ -94,6 +95,7 @@ object Protocol {
 
     trait Command {
         def toByteString: ByteString
+        def consistentSplit[T](elements: List[T]): Map[T, Command]
     }
 
     case class SetCommand(keyValueMap: Map[String, ByteString], ttl: Long) extends Command {
@@ -106,6 +108,14 @@ object Protocol {
                     ByteString("set " + key + " 0 " + ttl + " " + value.size + " noreply") ++ CRLF ++ value ++ CRLF
             }.foldLeft(ByteString())(_ ++ _)
         }
+        def consistentSplit[T](elements: List[T]) = {
+            val splitKeyValues: Map[T, Map[String, ByteString]] = keyValueMap.groupBy{
+                case (key, value) => elements(consistentHash(key.hashCode, elements.size))
+            }
+            splitKeyValues.map{
+                case (element, keyValueMap) => (element, SetCommand(keyValueMap, ttl))
+            }
+        }
     }
 
     case class DeleteCommand(keys: String*) extends Command {
@@ -115,12 +125,24 @@ object Protocol {
             } mkString ""
             ByteString(command)
         }
+        override def consistentSplit[T](elements: List[T]) = {
+            val splitKeys = keys.groupBy(key => elements(consistentHash(key.hashCode, elements.size)))
+            splitKeys.map{
+                case (element, keys) => (element, DeleteCommand(keys: _*))
+            }
+        }
     }
 
     case class GetCommand(keys: Set[String]) extends Command {
         override def toByteString = {
             if (keys.size > 0) ByteString("gets " + (keys mkString " ")) ++ CRLF
             else ByteString()
+        }
+        override def consistentSplit[T](elements: List[T]) = {
+            val splitKeys: Map[T, Set[String]] = keys.groupBy(key => elements(consistentHash(key.hashCode, elements.size)))
+            splitKeys.map{
+                case (element, keys) => (element, GetCommand(keys))
+            }
         }
     }
 

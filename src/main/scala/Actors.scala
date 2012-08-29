@@ -7,7 +7,6 @@ import akka.dispatch.Future
 import com.klout.akkamemcache.Protocol._
 import scala.collection.mutable.HashMap
 import com.klout.akkamemcache.Protocol._
-import com.google.common.hash.Hashing._
 
 class PoolActor(hosts: List[(String, Int)]) extends Actor {
     val actors = hosts map {
@@ -16,34 +15,10 @@ class PoolActor(hosts: List[(String, Int)]) extends Actor {
     }
     println("PoolActor was initiated with hosts: " + hosts)
     def receive = {
-        case command: GetCommand =>
-            val splitKeys = command.keys.groupBy(key => actors(consistentHash(key.hashCode, actors.size)))
-            val commands = splitKeys.map{
-                case (actor, keys) => (actor, GetCommand(keys))
-            }
-            commands foreach {
-                case (actor, command) => {
-                    println("Sending command to " + actor)
-                    actor ! (command, sender)
-                }
-            }
-        case command: DeleteCommand =>
-            val splitKeys = command.keys.groupBy(key => actors(consistentHash(key.hashCode, actors.size)))
-            val commands = splitKeys.map{
-                case (actor, keys) => (actor, DeleteCommand(keys: _*))
-            }
-            commands foreach {
-                case (actor, command) => actor ! command
-            }
-        case command: SetCommand =>
-            val splitKeyValues: Map[ActorRef, Map[String, ByteString]] = command.keyValueMap.groupBy{
-                case (key, value) => actors(consistentHash(key.hashCode, actors.size))
-            }
-            val commands: Map[ActorRef, SetCommand] = splitKeyValues.map{
-                case (actor, keyValueMap) => (actor, SetCommand(keyValueMap, command.ttl))
-            }
-            commands foreach {
-                case (actor, command) => actor ! command
+        case command: Command =>
+            command.consistentSplit(actors) foreach {
+                case (actor, command: GetCommand) => actor ! (command, sender)
+                case (actor, command: Command)    => actor ! command
             }
     }
 }
