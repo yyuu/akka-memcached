@@ -8,13 +8,28 @@ import com.klout.akkamemcache.Protocol._
 import scala.collection.mutable.HashMap
 import com.klout.akkamemcache.Protocol._
 
+/**
+ * This actor instantiates a pool of MemcachedIOActors. It receives commands from
+ * RealMemcachedClient and MemcachedClientActors and distributes them to the appropriate
+ * MemcachedIO actor depending on what server each key is mapped to.
+ */
 class PoolActor(hosts: List[(String, Int)]) extends Actor {
-    val actors = hosts map {
-        case (host, port) =>
-            context.actorOf(Props(new MemcachedIOActor(host, port)), name = "Memcached_IO_Actor_for_" + host)
+    var actors: List[ActorRef] = _
+
+    override def preStart {
+        actors = hosts map {
+            case (host, port) =>
+                context.actorOf(Props(new MemcachedIOActor(host, port)), name = "Memcached_IO_Actor_for_" + host)
+        }
     }
     println("PoolActor was initiated with hosts: " + hosts)
     def receive = {
+        /**
+         * For GetCommands, send a reference to the requesting actor to the
+         * IoActor so that the MemcachedIoActor can return the result directly
+         * to the requester. Because SetCommands and DeleteCommands are fire-and-forget,
+         * the MemcachedIoActor does not need to know the sender.
+         */
         case command: Command =>
             command.consistentSplit(actors) foreach {
                 case (actor, command: GetCommand) => actor ! (command, sender)
@@ -23,14 +38,24 @@ class PoolActor(hosts: List[(String, Int)]) extends Actor {
     }
 }
 
+/**
+ * This actor is responsible for all communication to and from a single memcached server
+ */
 class MemcachedIOActor(host: String, port: Int) extends Actor {
     def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
 
     var connection: IO.SocketHandle = _
 
+    /* Contains the pending results for a Memcache multiget that is currently
+     * in progress */
     var currentMap: HashMap[ActorRef, Set[PotentialResult]] = new HashMap
+
+    /* Contains the pending results for the next Memcached multiget */
     var nextMap: HashMap[ActorRef, Set[PotentialResult]] = new HashMap
 
+    /**
+     * Opens a single connection to the Memcached server
+     */
     override def preStart {
         connection = IOManager(context.system) connect new InetSocketAddress(host, port)
     }
@@ -42,7 +67,7 @@ class MemcachedIOActor(host: String, port: Int) extends Actor {
      * is completed
      */
     def enqueueCommand(actor: ActorRef, keys: Set[String]) {
-        val map = if (awaitingGetResponse) nextMap else currentMap
+        val map = if (awaitingResponseFromMemcached) nextMap else currentMap
         val results: Set[PotentialResult] = keys.map(NotYetFound)
         map.get(actor) match {
             case Some(existingResults) => map += ((actor, existingResults ++ results))
@@ -56,21 +81,21 @@ class MemcachedIOActor(host: String, port: Int) extends Actor {
      */
     def sendNotFoundMessages() {
         val missingKeys: List[(ActorRef, String)] = currentMap.toList.flatMap {
-            case (actor, results) => results.flatMap{
-                case NotYetFound(key) => Some((actor, key))
-                case _                => None
+            case (requestingActor, results) => results.flatMap{
+                case NotYetFound(key) => Some((requestingActor, key))
+                case found            => None
             }
         }
         missingKeys.foreach {
-            case (actor, key) => {
-                actor ! NotFound(key)
+            case (requestingActor, key) => {
+                requestingActor ! NotFound(key)
             }
         }
     }
 
     /**
      * Sends Found messages for all actors who are interested in the found object.
-     * Updates the ioActor's map to indicate that the keys have been found
+     * Updates the IoActor's map to indicate that the keys have been found
      */
     def sendFoundMessages(found: Found) {
         val requestingActors = currentMap.flatMap{
@@ -83,30 +108,30 @@ class MemcachedIOActor(host: String, port: Int) extends Actor {
         }
 
         currentMap = currentMap.map{
-            case (actor, results) =>
+            case (requestingActor, results) =>
                 val newKeys = results.map{
                     case NotYetFound(key) if key == found.key => found
                     case other                                => other
                 }
-                (actor, newKeys)
+                (requestingActor, newKeys)
         }
     }
 
     /**
-     * Writes the command to memcached to get the keys from the currentMap, if
-     * writing is allowed.
+     * Writes a multiget command that contains all of the keys from currentMap
+     * into Memcached
      */
     def writeGetCommandToMemcachedIfPossible() {
-        if (!awaitingGetResponse) {
+        if (!awaitingResponseFromMemcached) {
             val missingKeys = currentMap.flatMap {
                 case (actor, potentialResults) => potentialResults.map(_.key)
             }.toSet
 
             if (missingKeys.size > 0) {
                 connection.write(GetCommand(missingKeys).toByteString)
-                awaitingGetResponse = true
+                awaitingResponseFromMemcached = true
             } else {
-                awaitingGetResponse = false
+                awaitingResponseFromMemcached = false
             }
         }
     }
@@ -121,7 +146,7 @@ class MemcachedIOActor(host: String, port: Int) extends Actor {
             case (actor, results) =>
                 results.flatMap {
                     case Found(key, value) => Some((key, value))
-                    case _                 => None
+                    case notFound          => None
                 }
         }
         currentMap = nextMap
@@ -143,28 +168,32 @@ class MemcachedIOActor(host: String, port: Int) extends Actor {
     }
 
     /**
-     * This is triggered when Memcached sends an END. Any key in the current get
-     * map that does not have a value at this point was not found by the client.
+     * This is triggered when Memcached sends an END. At this point, any PotentialResults
+     * in currentMap that are NotYetFound are cache misses.
      */
     def getCommandCompleted() {
-        awaitingGetResponse = false
+        awaitingResponseFromMemcached = false
         sendNotFoundMessages()
         swapMaps()
         writeGetCommandToMemcachedIfPossible()
     }
 
+    // This Iteratee processes the response from Memcached
     val iteratee = IO.IterateeRef.async(new Iteratees(self).processLine)(context.dispatcher)
 
-    var awaitingGetResponse = false
+    var awaitingResponseFromMemcached = false
 
     def receive = {
         case raw: ByteString =>
             connection write raw
 
+        /**
+         * GetCommand issued from the PoolActor, on behalf of a MemcachedClientActor
+         */
         case (GetCommand(keys), recipient: ActorRef) =>
             enqueueCommand(recipient, keys)
             writeGetCommandToMemcachedIfPossible()
-            awaitingGetResponse = true
+            awaitingResponseFromMemcached = true
 
         case command: Command =>
             connection write command.toByteString

@@ -32,8 +32,3 @@ scalariformSettings ++ Seq(
     setPreference(PreserveDanglingCloseParenthesis, true).
     setPreference(PreserveSpaceBeforeArguments, true)
 )
-
-fork := true
-
-javaOptions += "-Xmx2G"
-

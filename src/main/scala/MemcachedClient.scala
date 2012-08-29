@@ -32,12 +32,12 @@ class RealMemcachedClient extends MemcachedClient {
     val system = ActorSystem()
 
     val hosts = List(
-        ("localhost", 11211),
-        ("load-api1", 9001),
-        ("search1", 11211),
-        ("search2", 11211)
+        ("localhost", 11211)
+    //("load-api1", 9001),
+    //("search1", 11211),
+    //("search2", 11211)
     )
-    val poolActor = system.actorOf(Props(new PoolActor(hosts)))
+    val poolActor = system.actorOf(Props(new PoolActor(hosts)), name = "PoolActor")
 
     override def set[T: Serializer](key: String, value: T, ttl: Duration) {
         mset(Map(key -> value), ttl)
@@ -58,9 +58,12 @@ class RealMemcachedClient extends MemcachedClient {
         val actor = system.actorOf(Props(new MemcachedClientActor(poolActor)))
         val command = GetCommand(keys)
         (actor ? command).map{
-            case result: List[GetResult] => result.flatMap {
-                case Found(key, value) => Some(key, Deserializer.deserialize[T](value))
-                case NotFound(key)     => None
+            case result: List[GetResult] => {
+                system.stop(actor)
+                result.flatMap {
+                    case Found(key, value) => Some(key, Deserializer.deserialize[T](value))
+                    case NotFound(key)     => None
+                }
             }.toMap
             case other => throw new Exception("Invalid result returned: " + other)
         }

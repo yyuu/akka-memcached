@@ -77,59 +77,70 @@ object PerformanceTest {
     }
 
     class AkkaMemcachedTests(testName: String) extends TestCase(testName) {
-        def akkaSetAndGetSingleString() {
+
+        def akkaSet() {
             akkaClient.set("akkatest", "Test", 0 seconds)
+            akkaClient.mset(bigMapAkka, 0 seconds)
+            akkaClient.set("akkaBigObject", bigMapAkka, 0 seconds)
+            akkaClient.mset(bigMapOfListsAkka, 0 seconds)
+        }
+
+        def akkaGetSingleString() {
             Await.result(akkaClient.get[String]("akkatest"), 5 seconds)
         }
-        def akkaSetAndGetManyStrings() {
-            akkaClient.mset(bigMapAkka, 0 seconds)
+        def akkaGetManyStrings() {
             Await.result(akkaClient.mget[String](bigMapAkka.keys.toSet), 5 seconds)
         }
-        def akkaSetAndGetSingleBigObject() {
-            akkaClient.set("akkaBigObject", bigMapAkka, 0 seconds)
+        def akkaGetSingleBigObject() {
             Await.result(akkaClient.get[Map[String, String]]("akkaBigObject"), 5 seconds)
         }
-        def akkaSetAndGetManyBigObjects() {
-            akkaClient.mset(bigMapOfListsAkka, 0 seconds)
+        def akkaGetManyBigObjects() {
             Await.result(akkaClient.mget[List[String]](bigMapOfListsAkka.keys.toSet), 5 seconds)
         }
     }
 
     class SpyMemcachedTests(testName: String) extends TestCase(testName) {
-        def spySetAndGetSingleString() {
+
+        def spySet() {
             spyClient.set("spytest", 0, "Test")
-            spyClient.get("spytest")
-        }
-        def spySetAndGetManyStrings() {
             bigMapSpy.foreach {
                 case (key, value) => spyClient.set(key, 0, value)
             }
-            spyClient.getBulk(bigMapSpy.keys)
-        }
-        def spySetAndGetSingleBigObject() {
             spyClient.set("spyBigObject", 0, bigMapSpy)
-            spyClient.get("spyBigObject")
-        }
-        def spySetAndGetManyBigObjects() {
             bigMapOfListsSpy foreach {
                 case (key, value) => spyClient.set(key, 0, value)
             }
+        }
+        def spyGetSingleString() {
+            spyClient.get("spytest")
+        }
+        def spyGetManyStrings() {
+            spyClient.getBulk(bigMapSpy.keys)
+        }
+        def spyGetSingleBigObject() {
+            spyClient.get("spyBigObject")
+        }
+        def spyGetManyBigObjects() {
             spyClient.getBulk(bigMapOfListsSpy.keys)
         }
     }
     def suite: Test = {
         val suite = new TestSuite
-        suite addTest new TimedTest(new AkkaMemcachedTests("akkaSetAndGetSingleString"), 30000)
-        suite addTest new TimedTest(new SpyMemcachedTests("spySetAndGetSingleString"), 30000)
 
-        suite addTest new TimedTest(new AkkaMemcachedTests("akkaSetAndGetManyStrings"), 30000)
-        suite addTest new TimedTest(new SpyMemcachedTests("spySetAndGetManyStrings"), 30000)
+        suite addTest new TimedTest(new AkkaMemcachedTests("akkaSet"), 30000)
+        suite addTest new TimedTest(new SpyMemcachedTests("spySet"), 30000)
 
-        suite addTest new TimedTest(new AkkaMemcachedTests("akkaSetAndGetSingleBigObject"), 30000)
-        suite addTest new TimedTest(new SpyMemcachedTests("spySetAndGetSingleBigObject"), 30000)
+        suite addTest new TimedTest(new AkkaMemcachedTests("akkaGetSingleString"), 30000)
+        suite addTest new TimedTest(new SpyMemcachedTests("spyGetSingleString"), 30000)
 
-        suite addTest new TimedTest(new AkkaMemcachedTests("akkaSetAndGetManyBigObjects"), 30000)
-        suite addTest new TimedTest(new SpyMemcachedTests("spySetAndGetManyBigObjects"), 30000)
+        suite addTest new TimedTest(new AkkaMemcachedTests("akkaGetManyStrings"), 30000)
+        suite addTest new TimedTest(new SpyMemcachedTests("spyGetManyStrings"), 30000)
+
+        suite addTest new TimedTest(new AkkaMemcachedTests("akkaGetSingleBigObject"), 30000)
+        suite addTest new TimedTest(new SpyMemcachedTests("spyGetSingleBigObject"), 30000)
+
+        suite addTest new TimedTest(new AkkaMemcachedTests("akkaGetManyBigObjects"), 30000)
+        suite addTest new TimedTest(new SpyMemcachedTests("spyGetManyBigObjects"), 30000)
         suite
     }
 

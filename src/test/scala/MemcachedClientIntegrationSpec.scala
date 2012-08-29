@@ -118,12 +118,12 @@ class MemcachedClientIntegrationSpec extends Specification with PendingUntilFixe
             val result = Await.result(client.get("testObject"), timeout)
             result must_== Some(testObject)
         }
-        // "delete all of the keys used in this test" in {
-        //     val keys = List("key1", "key2", "key3", "key4", "key5", "key6", "map1", "list1", "testObject")
-        //     client.delete(keys: _*)
-        //     val keyValueMap = Await.result(client.mget[Object](keys.toSet), timeout)
-        //     keyValueMap.values.forall(_ == None) must beTrue
-        // }
+        "delete all of the keys used in this test" in {
+            val keys = List("key1", "key2", "key3", "key4", "key5", "key6", "map1", "list1", "testObject")
+            client.delete(keys: _*)
+            val keyValueMap = Await.result(client.mget[Object](keys.toSet), timeout)
+            keyValueMap.values.forall(_ == None) must beTrue
+        }
 
     }
 }
