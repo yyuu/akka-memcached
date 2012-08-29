@@ -7,12 +7,49 @@ import akka.dispatch.Future
 import com.klout.akkamemcache.Protocol._
 import scala.collection.mutable.HashMap
 import com.klout.akkamemcache.Protocol._
+import com.google.common.hash.Hashing._
 
-class MemcachedIOActor extends Actor {
+class PoolActor(hosts: List[(String, Int)]) extends Actor {
+    val actors = hosts map {
+        case (host, port) =>
+            context.actorOf(Props(new MemcachedIOActor(host, port)), name = "Memcached_IO_Actor_for_" + host)
+    }
+    println("PoolActor was initiated with hosts: " + hosts)
+    def receive = {
+        case command: GetCommand =>
+            val splitKeys = command.keys.groupBy(key => actors(consistentHash(key.hashCode, actors.size)))
+            val commands = splitKeys.map{
+                case (actor, keys) => (actor, GetCommand(keys))
+            }
+            commands foreach {
+                case (actor, command) => {
+                    println("Sending command to " + actor)
+                    actor ! (command, sender)
+                }
+            }
+        case command: DeleteCommand =>
+            val splitKeys = command.keys.groupBy(key => actors(consistentHash(key.hashCode, actors.size)))
+            val commands = splitKeys.map{
+                case (actor, keys) => (actor, DeleteCommand(keys: _*))
+            }
+            commands foreach {
+                case (actor, command) => actor ! command
+            }
+        case command: SetCommand =>
+            val splitKeyValues: Map[ActorRef, Map[String, ByteString]] = command.keyValueMap.groupBy{
+                case (key, value) => actors(consistentHash(key.hashCode, actors.size))
+            }
+            val commands: Map[ActorRef, SetCommand] = splitKeyValues.map{
+                case (actor, keyValueMap) => (actor, SetCommand(keyValueMap, command.ttl))
+            }
+            commands foreach {
+                case (actor, command) => actor ! command
+            }
+    }
+}
+
+class MemcachedIOActor(host: String, port: Int) extends Actor {
     def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
-    implicit val ec = ActorSystem()
-
-    val port = 11211
 
     var connection: IO.SocketHandle = _
 
@@ -20,7 +57,7 @@ class MemcachedIOActor extends Actor {
     var nextMap: HashMap[ActorRef, Set[PotentialResult]] = new HashMap
 
     override def preStart {
-        connection = IOManager(context.system) connect new InetSocketAddress(port)
+        connection = IOManager(context.system) connect new InetSocketAddress(host, port)
     }
 
     /**
@@ -147,40 +184,34 @@ class MemcachedIOActor extends Actor {
 
     def receive = {
         case raw: ByteString =>
-            println("Raw: " + raw)
             connection write raw
 
-        case get @ GetCommand(keys) =>
-            enqueueCommand(sender, keys)
+        case (GetCommand(keys), recipient: ActorRef) =>
+            enqueueCommand(recipient, keys)
             writeGetCommandToMemcachedIfPossible()
             awaitingGetResponse = true
 
-        case command: DeleteCommand =>
+        case command: Command =>
             connection write command.toByteString
-
-        case commands: List[SetCommand] => {
-            val toWrite: ByteString = commands.foldLeft(ByteString())(_ ++ _.toByteString)
-            connection write toWrite
-        }
 
         /* Response from Memcached */
         case IO.Read(socket, bytes) =>
             iteratee(IO Chunk bytes)
 
         /* A single get result has been returned */
-        case found: Found => sendFoundMessages(found)
+        case found: Found => {
+            sendFoundMessages(found)
+        }
 
         /* A multiget has completed */
-        case Finished     => getCommandCompleted()
+        case Finished => getCommandCompleted()
     }
 
 }
 
-class MemcachedClientActor extends Actor {
+class MemcachedClientActor(poolActor: ActorRef) extends Actor {
     implicit val ec = ActorSystem()
     var originalSender: ActorRef = _
-
-    var ioActor: ActorRef = _
 
     var getMap: HashMap[String, Option[GetResult]] = new HashMap
 
@@ -200,7 +231,7 @@ class MemcachedClientActor extends Actor {
                 key =>
                     key -> None
             }
-            ioActor ! command
+            poolActor ! command
         }
 
         /* This is a partial result from Memcached. This actor will continue to accept 
@@ -211,9 +242,6 @@ class MemcachedClientActor extends Actor {
             maybeSendResponse()
         }
 
-        case ioActor: ActorRef => {
-            this.ioActor = ioActor
-        }
     }
 }
 

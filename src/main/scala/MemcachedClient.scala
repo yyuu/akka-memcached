@@ -31,19 +31,23 @@ class RealMemcachedClient extends MemcachedClient {
 
     val system = ActorSystem()
 
-    val ioActor = system.actorOf(Props[MemcachedIOActor])
+    val hosts = List(
+        ("localhost", 11211),
+        ("load-api1", 9001),
+        ("search1", 11211),
+        ("search2", 11211)
+    )
+    val poolActor = system.actorOf(Props(new PoolActor(hosts)))
 
     override def set[T: Serializer](key: String, value: T, ttl: Duration) {
         mset(Map(key -> value), ttl)
     }
 
-    override def mset[T: Serializer](values: Map[String, T], ttl: Duration) {
-        val commands = values.map {
-            case (key, value) => {
-                SetCommand(key, Serializer.serialize(value), ttl.toSeconds)
-            }
+    override def mset[T: Serializer](keyValueMap: Map[String, T], ttl: Duration) {
+        val serializedKeyValueMap = keyValueMap map {
+            case (key, value) => key -> Serializer.serialize(value)
         }
-        ioActor ! commands
+        poolActor ! SetCommand(serializedKeyValueMap, ttl.toSeconds)
     }
 
     override def get[T: Deserializer](key: String): Future[Option[T]] = {
@@ -51,8 +55,7 @@ class RealMemcachedClient extends MemcachedClient {
     }
 
     override def mget[T: Deserializer](keys: Set[String]): Future[Map[String, T]] = {
-        val actor = system.actorOf(Props[MemcachedClientActor])
-        actor ! ioActor // Associate the ioActor in MemcachedClient with this actor
+        val actor = system.actorOf(Props(new MemcachedClientActor(poolActor)))
         val command = GetCommand(keys)
         (actor ? command).map{
             case result: List[GetResult] => result.flatMap {
@@ -65,7 +68,7 @@ class RealMemcachedClient extends MemcachedClient {
 
     override def delete(keys: String*) {
         val commands = DeleteCommand(keys: _*)
-        ioActor ! commands
+        poolActor ! commands
     }
 
 }

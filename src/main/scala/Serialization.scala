@@ -37,8 +37,7 @@ object Serializer {
 
     implicit def any[T <: AnyRef] = new Serializer[T] {
         def serialize(o: T): ByteString = {
-            val before = Calendar.getInstance().getTimeInMillis
-            val result = Option(o) match {
+            Option(o) match {
                 case None => throw new NullPointerException("Can't serialize null")
                 case Some(o) =>
                     try {
@@ -58,11 +57,6 @@ object Serializer {
                         }
                     }
             }
-            val after = Calendar.getInstance().getTimeInMillis
-
-            if (after - before > 1)
-                println("Serialization time: " + (after - before))
-            result
         }
     }
 }

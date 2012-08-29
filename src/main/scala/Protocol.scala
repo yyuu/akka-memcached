@@ -96,12 +96,15 @@ object Protocol {
         def toByteString: ByteString
     }
 
-    case class SetCommand(key: String, payload: ByteString, ttl: Long) extends Command {
+    case class SetCommand(keyValueMap: Map[String, ByteString], ttl: Long) extends Command {
         override def toByteString = {
-            if (key.size == 0) throw new RuntimeException("A key is required")
-            if (payload.size == 0) throw new RuntimeException("Payload size must be greater than 0")
-            if (ttl < 0) throw new RuntimeException("ttl must be greater than or equal to 0")
-            ByteString("set " + key + " 0 " + ttl + " " + payload.size + " noreply") ++ CRLF ++ payload ++ CRLF
+            keyValueMap.map {
+                case (key, value) =>
+                    if (key.size == 0) throw new RuntimeException("A key is required")
+                    if (key.contains(' ') || key.contains('\r') || key.contains('\n') || key.contains('\t'))
+                        throw new RuntimeException("Keys cannot have whitespace")
+                    ByteString("set " + key + " 0 " + ttl + " " + value.size + " noreply") ++ CRLF ++ value ++ CRLF
+            }.foldLeft(ByteString())(_ ++ _)
         }
     }
 
