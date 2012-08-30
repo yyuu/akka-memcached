@@ -30,7 +30,7 @@ object Serializer {
 
     def serialize[T: Serializer](t: T): ByteString = implicitly[Serializer[T]] serialize t
 
-    implicit def any[T <: AnyRef] = new Serializer[T] {
+    implicit def any[T] = new Serializer[T] {
         def serialize(o: T): ByteString = {
             Option(o) match {
                 case None => throw new NullPointerException("Can't serialize null")
@@ -62,7 +62,7 @@ trait Deserializer[T] {
 
 object Deserializer {
 
-    implicit def any[T <: AnyRef] = new Deserializer[T] {
+    implicit def any[T] = new Deserializer[T] {
         def deserialize(in: ByteString): T = {
             val bis = new ByteArrayInputStream(in.iterator.toArray)
             val is = new JBossObjectInputStream(bis)

@@ -70,7 +70,8 @@ class PoolActor(hosts: List[(String, Int)]) extends Actor {
                 case (host, port) =>
                     (host, (1 to connectionsPerServer).map {
                         num =>
-                            context.actorOf(Props(new MemcachedIOActor(host, port, self)), name = "Memcached_IO_Actor_for_" + host + "_" + num)
+                            context.actorOf(Props(new MemcachedIOActor(host, port, self)),
+                                name = "Memcached_IO_Actor_for_" + host + "_" + num)
                     }.toList)
             }: _*
         }

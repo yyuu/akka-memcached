@@ -24,6 +24,12 @@ resolvers ++= Seq(	"Typesafe Repository" at "http://repo.typesafe.com/typesafe/r
 					"snapshots" at "http://oss.sonatype.org/content/repositories/snapshots",
                     "releases"  at "http://oss.sonatype.org/content/repositories/releases")
 
+organization := "com.klout"
+
+publishTo := Some("kloutLibraryReleases" at "http://maven-repo:8081/artifactory/libs-release-local")
+
+credentials := Credentials(Path.userHome / ".ivy2" / ".credentials") :: Nil
+
 scalariformSettings ++ Seq(
     ScalariformKeys.preferences := FormattingPreferences().
     setPreference(AlignParameters, true).
