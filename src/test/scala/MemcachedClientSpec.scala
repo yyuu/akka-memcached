@@ -41,13 +41,13 @@ class MemcachedClientSpec extends Specification with PendingUntilFixed {
             Await.result((fakeIoActor ? "Finished"), Duration("1 second")).asInstanceOf[Option[Boolean]] must_== Some(true)
         }
         "properly parse a single result" in {
-            val command = ByteString("VALUE testKey 0 10 88064\r\nabcdefghij\r\nEND\r\n")
+            val command = ByteString("VALUE testKey 0 10\r\nabcdefghij\r\nEND\r\n")
             iteratee(IO Chunk command)
             Await.result((fakeIoActor ? "testKey"), Duration("1 second")).asInstanceOf[Option[ByteString]] must_== Some(ByteString("abcdefghij"))
         }
         "properly parse multiple results" in {
-            val command1 = ByteString("VALUE testKey2 0 5 88064\r\n01234\r\n")
-            val command2 = ByteString("VALUE testKey3 0 7 88064\r\n5678910\r\nEND\r\n")
+            val command1 = ByteString("VALUE testKey2 0 5\r\n01234\r\n")
+            val command2 = ByteString("VALUE testKey3 0 7\r\n5678910\r\nEND\r\n")
             val commands = command1 ++ command2
             iteratee(IO Chunk commands)
             Await.result((fakeIoActor ? "testKey2"), Duration("1 second")).asInstanceOf[Option[ByteString]] must_== Some(ByteString("01234"))
@@ -59,16 +59,16 @@ class MemcachedClientSpec extends Specification with PendingUntilFixed {
             var bytes2: Array[Byte] = new Array(50)
             Random.nextBytes(bytes1)
             Random.nextBytes(bytes2)
-            val command1 = ByteString("VALUE random1 0 10 12343\r\n") ++ ByteString(bytes1) ++ ByteString("\r\n")
-            val command2 = ByteString("VALUE random2 0 50 12343\r\n") ++ ByteString(bytes2) ++ ByteString("\r\nEND\r\n")
+            val command1 = ByteString("VALUE random1 0 10\r\n") ++ ByteString(bytes1) ++ ByteString("\r\n")
+            val command2 = ByteString("VALUE random2 0 50\r\n") ++ ByteString(bytes2) ++ ByteString("\r\nEND\r\n")
             val commands = command1 ++ command2
             iteratee(IO Chunk commands)
             Await.result((fakeIoActor ? "random1"), Duration("1 second")).asInstanceOf[Option[ByteString]] must_== Some(ByteString(bytes1))
             Await.result((fakeIoActor ? "random2"), Duration("1 second")).asInstanceOf[Option[ByteString]] must_== Some(ByteString(bytes2))
         }
         "parse a result that comes in two chunks" in {
-            val part1 = ByteString("VALUE parts 0 10 ")
-            val part2 = ByteString("12321\r\nabcdefghij\r\nEND\r\n")
+            val part1 = ByteString("VALUE parts 0 10")
+            val part2 = ByteString("\r\nabcdefghij\r\nEND\r\n")
             iteratee(IO Chunk part1)
             iteratee(IO Chunk part2)
             Await.result((fakeIoActor ? "parts"), Duration("1 second")).asInstanceOf[Option[ByteString]] must_== Some(ByteString("abcdefghij"))

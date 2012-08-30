@@ -14,18 +14,21 @@ trait MemcachedClient {
 
     val DefaultDuration = 1 hour
 
-    def set[T: Serializer](key: String, value: T, ttl: Duration = DefaultDuration)
+    def set[T: Serializer](key: String, value: T, ttl: Duration = DefaultDuration): Unit
 
-    def mset[T: Serializer](values: Map[String, T], ttl: Duration = DefaultDuration)
+    def mset[T: Serializer](values: Map[String, T], ttl: Duration = DefaultDuration): Unit
 
     def get[T: Deserializer](key: String): Future[Option[T]]
 
     def mget[T: Deserializer](keys: Set[String]): Future[Map[String, T]]
 
-    def delete(keys: String*)
+    def delete(keys: String*): Unit
 
 }
 
+/**
+ * Asynchronous memcached client.
+ */
 class RealMemcachedClient(hosts: List[(String, Int)]) extends MemcachedClient {
     implicit val timeout = Timeout(1 seconds) // needed for `?` below
 

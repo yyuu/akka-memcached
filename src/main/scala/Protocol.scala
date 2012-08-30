@@ -5,7 +5,7 @@ import akka.util.ByteString
 import akka.actor._
 import com.google.common.hash.Hashing._
 
-// Object sent to the IOActor indicating that a multiget request is complete.
+/* Object sent to the IOActor indicating that a multiget request is complete. */
 object Finished
 
 class Iteratees(ioActor: ActorRef) {
@@ -53,8 +53,7 @@ class Iteratees(ioActor: ActorRef) {
             whitespace <- IO takeUntil Space;
             key <- IO takeUntil Space;
             id <- IO takeUntil Space;
-            length <- IO takeUntil Space map (ascii(_).toInt);
-            cas <- IO takeUntil CRLF;
+            length <- IO takeUntil CRLF map (ascii(_).toInt);
             value <- IO take length;
             newline <- IO takeUntil CRLF
         } yield {
@@ -135,7 +134,7 @@ object Protocol {
 
     case class GetCommand(keys: Set[String]) extends Command {
         override def toByteString = {
-            if (keys.size > 0) ByteString("gets " + (keys mkString " ")) ++ CRLF
+            if (keys.size > 0) ByteString("get " + (keys mkString " ")) ++ CRLF
             else ByteString()
         }
         override def consistentSplit[T](elements: List[T]) = {
