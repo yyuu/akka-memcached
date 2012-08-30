@@ -67,8 +67,6 @@ class MemcachedClientSpec extends Specification with PendingUntilFixed {
             Await.result((fakeIoActor ? "random2"), Duration("1 second")).asInstanceOf[Option[ByteString]] must_== Some(ByteString(bytes2))
         }
         "parse a result that comes in two chunks" in {
-            // val part = ByteString("VALUE part1 0 10 12321\r\nabcdefghij\r\nEND\r\n")
-            // iteratee = iteratee(IO Chunk part)._1
             val part1 = ByteString("VALUE parts 0 10 ")
             val part2 = ByteString("12321\r\nabcdefghij\r\nEND\r\n")
             iteratee(IO Chunk part1)
@@ -76,7 +74,6 @@ class MemcachedClientSpec extends Specification with PendingUntilFixed {
             Await.result((fakeIoActor ? "parts"), Duration("1 second")).asInstanceOf[Option[ByteString]] must_== Some(ByteString("abcdefghij"))
         }
         "make sure that it has the valid information in the state" in {
-            /* The state contains the five kv pairs, and the "finished" indicator */
             val state = Await.result((fakeIoActor ? GiveMeTheState), Duration("1 second")).asInstanceOf[HashMap[String, Any]]
             state.size must_== 7
             state.get("Finished") must_== Some(true)

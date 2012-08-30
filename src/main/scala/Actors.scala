@@ -8,13 +8,16 @@ import com.klout.akkamemcache.Protocol._
 import scala.collection.mutable.{ HashMap, HashSet }
 import com.klout.akkamemcache.Protocol._
 import scala.collection.JavaConversions._
+import scala.util.Random
 /**
- * This actor instantiates a pool of MemcachedIOActors. It receives commands from
- * RealMemcachedClient and MemcachedClientActors and distributes them to the appropriate
- * MemcachedIO actor depending on what server each key is mapped to.
+ * This actor instantiates the pool of MemcachedIOActors and routes requests
+ * from the MemcachedClient to the IOActors
  */
 class PoolActor(hosts: List[(String, Int)]) extends Actor {
-    var ioActors: List[ActorRef] = _
+
+    val connectionsPerServer = 3
+
+    var ioActors: HashMap[(String, Int), List[ActorRef]] = _
 
     var requestMap: HashMap[ActorRef, HashMap[String, Option[GetResult]]] = new HashMap()
 
@@ -46,15 +49,23 @@ class PoolActor(hosts: List[(String, Int)]) extends Actor {
     }
 
     override def preStart {
-        ioActors = hosts map {
-            case (host, port) =>
-                context.actorOf(Props(new MemcachedIOActor(host, port, self)), name = "Memcached_IO_Actor_for_" + host)
+        ioActors = HashMap{
+            hosts.map {
+                case (host, port) =>
+                    ((host, port), (1 to connectionsPerServer).map {
+                        num =>
+                            context.actorOf(Props(new MemcachedIOActor(host, port, self)), name = "Memcached_IO_Actor_for_" + host + "_" + num)
+                    }.toList)
+            }: _*
         }
     }
 
     def forwardCommand(command: Command) = {
-        command.consistentSplit(ioActors) foreach {
-            case (ioActor, command) => ioActor ! command
+        command.consistentSplit(hosts) foreach {
+            case (host, command) => {
+                val ioActor = ioActors(host)(Random.nextInt(connectionsPerServer))
+                ioActor ! command
+            }
         }
     }
 

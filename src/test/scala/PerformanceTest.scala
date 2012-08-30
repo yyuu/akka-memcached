@@ -65,7 +65,7 @@ object PerformanceTest {
     val bigListSpy = (1 to 1000).map("Spy String #" + _)
     val bigMapOfListsSpy = (1 to 100).map(num => "Spy" + num.toString -> (bigListSpy take num)) toMap
 
-    val akkaClient = new RealMemcachedClient()
+    val akkaClient = new RealMemcachedClient(List(("localhost", 11211)))
 
     val spyClient = {
         import net.spy.memcached.{ MemcachedClient => SpyMemcachedClient }

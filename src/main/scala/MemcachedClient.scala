@@ -26,17 +26,11 @@ trait MemcachedClient {
 
 }
 
-class RealMemcachedClient extends MemcachedClient {
+class RealMemcachedClient(hosts: List[(String, Int)]) extends MemcachedClient {
     implicit val timeout = Timeout(1 seconds) // needed for `?` below
 
     val system = ActorSystem()
 
-    val hosts = List(
-        ("localhost", 11211)
-    //("load-api1", 9001),
-    //("search1", 11211),
-    //("search2", 11211)
-    )
     val poolActor = system.actorOf(Props(new PoolActor(hosts)), name = "PoolActor")
 
     override def set[T: Serializer](key: String, value: T, ttl: Duration) {
