@@ -30,7 +30,7 @@ trait MemcachedClient {
  * Asynchronous memcached client.
  */
 class RealMemcachedClient(hosts: List[(String, Int)]) extends MemcachedClient {
-    implicit val timeout = Timeout(1 seconds) // needed for `?` below
+    implicit val timeout = Timeout(5 seconds) // needed for `?` below
 
     val system = ActorSystem()
 
@@ -65,8 +65,7 @@ class RealMemcachedClient(hosts: List[(String, Int)]) extends MemcachedClient {
     }
 
     override def delete(keys: String*) {
-        val commands = DeleteCommand(keys: _*)
-        poolActor ! commands
+        poolActor ! DeleteCommand(keys: _*)
     }
 
 }

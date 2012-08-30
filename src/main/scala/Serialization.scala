@@ -8,12 +8,11 @@ import java.io.IOException
 import java.util.Calendar
 
 trait Serializer[T] {
-
     def serialize(t: T): ByteString
-
 }
 
 object `package` {
+
     def using[C <: Closeable, V](closeables: C*)(f: () => V): V = {
         try {
             f.apply
@@ -22,10 +21,6 @@ object `package` {
         }
     }
 
-    /**
-     * If you have a side-effecting function that might throw an exception,
-     * but don't care other than to log the error, you can wrap it in this funciton.
-     */
     def safely(f: => Any) {
         try { f } catch { case error => {} }
     }
@@ -62,14 +57,10 @@ object Serializer {
 }
 
 trait Deserializer[T] {
-
     def deserialize(bytes: ByteString): T
-
 }
 
 object Deserializer {
-
-    def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
 
     implicit def any[T <: AnyRef] = new Deserializer[T] {
         def deserialize(in: ByteString): T = {

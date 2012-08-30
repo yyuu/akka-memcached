@@ -21,11 +21,10 @@ class PoolActor(hosts: List[(String, Int)]) extends Actor {
      * This is a mapping from hosts to actors. Each host has one actor for each connection
      * to it
      */
-    var ioActors: HashMap[(String, Int), List[ActorRef]] = _
+    var ioActors: HashMap[String, List[ActorRef]] = _
 
     /**
-     * RequestMap maps actors to the results that the actor has recieved from
-     * memcached.
+     * RequestMap maps actors to the results that the actor has recieved from memcached.
      */
     var requestMap: HashMap[ActorRef, HashMap[String, Option[GetResult]]] = new HashMap()
 
@@ -62,13 +61,14 @@ class PoolActor(hosts: List[(String, Int)]) extends Actor {
     }
 
     /**
-     * Instantiate the actors for the Memcached clusters
+     * Instantiate the actors for the Memcached clusters. Each host is mapped to a set
+     * of actors. Each IoActor owns one connection to the server.
      */
     override def preStart {
         ioActors = HashMap{
             hosts.map {
                 case (host, port) =>
-                    ((host, port), (1 to connectionsPerServer).map {
+                    (host, (1 to connectionsPerServer).map {
                         num =>
                             context.actorOf(Props(new MemcachedIOActor(host, port, self)), name = "Memcached_IO_Actor_for_" + host + "_" + num)
                     }.toList)
@@ -78,11 +78,12 @@ class PoolActor(hosts: List[(String, Int)]) extends Actor {
 
     /**
      * Splits the given command into subcommands that are sent to the
-     * appropriate IoActors
+     * appropriate IoActors.
      */
     def forwardCommand(command: Command) = {
         command.consistentSplit(hosts) foreach {
-            case (host, command) => {
+            case ((host, port), command) => {
+                // Send the command to a random connection on the appropriate server
                 val ioActor = ioActors(host)(Random.nextInt(connectionsPerServer))
                 ioActor ! command
             }
@@ -126,8 +127,6 @@ class PoolActor(hosts: List[(String, Int)]) extends Actor {
  * using a single conneciton.
  */
 class MemcachedIOActor(host: String, port: Int, poolActor: ActorRef) extends Actor {
-    def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
-
     var connection: IO.SocketHandle = _
 
     /* Contains the pending results for a Memcache multiget that is currently
@@ -181,14 +180,16 @@ class MemcachedIOActor(host: String, port: Int, poolActor: ActorRef) extends Act
         writeGetCommandToMemcachedIfPossible()
     }
 
-    // This Iteratee processes the response from Memcached
-    val iteratee = IO.IterateeRef.async(new Iteratees(self).processLine)(context.dispatcher)
+    /**
+     * This Iteratee processes the responses from Memcached and sends messages back to
+     * the IoActor whenever it has parsed a result
+     */
+    val iteratee = IO.IterateeRef.async(new Iteratees(self).processInput)(context.dispatcher)
 
     var awaitingResponseFromMemcached = false
 
     def receive = {
-        case raw: ByteString =>
-            connection write raw
+        case raw: ByteString => connection write raw
 
         /**
          * Adds the keys for the getcommand to a queue for writing to Memcached,
@@ -202,15 +203,13 @@ class MemcachedIOActor(host: String, port: Int, poolActor: ActorRef) extends Act
         /**
          * Immediately writes a command to Memcached
          */
-        case command: Command =>
-            connection write command.toByteString
+        case command: Command       => connection write command.toByteString
 
         /**
          * Reads data from Memcached. The iteratee will send the result
          * of this read to this actor as a Found or Finished message
          */
-        case IO.Read(socket, bytes) =>
-            iteratee(IO Chunk bytes)
+        case IO.Read(socket, bytes) => iteratee(IO Chunk bytes)
 
         /**
          * A single key-value pair has been returned from Memcached. Sends

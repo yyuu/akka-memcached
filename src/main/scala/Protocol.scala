@@ -4,6 +4,7 @@ import akka.actor.IO
 import akka.util.ByteString
 import akka.actor._
 import com.google.common.hash.Hashing._
+import Protocol._
 
 /* Object sent to the IOActor indicating that a multiget request is complete. */
 object Finished
@@ -11,18 +12,20 @@ object Finished
 class Iteratees(ioActor: ActorRef) {
     import Constants._
 
-    def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
-
     val whiteSpace = Set(' ', '\r').map(_.toByte)
 
+    /**
+     * Skip over whitespace
+     */
     def continue(byte: Byte): Boolean = {
         !whiteSpace.contains(byte)
     }
 
-    val readLine = {
+    val readInput = {
         (IO takeWhile continue) flatMap {
-            case Value =>
-                processValue
+
+            /* Cache hit */
+            case Value => processValue
 
             case Error => {
                 IO takeUntil CRLF map { _ =>
@@ -31,6 +34,7 @@ class Iteratees(ioActor: ActorRef) {
                 }
             }
 
+            /* This marks the end of a Multiget */
             case End => {
                 IO takeUntil CRLF map { _ =>
                     ioActor ! Finished
@@ -48,6 +52,9 @@ class Iteratees(ioActor: ActorRef) {
         }
     }
 
+    /**
+     * Processes a cache hit from Memcached
+     */
     val processValue = {
         for {
             whitespace <- IO takeUntil Space;
@@ -62,9 +69,13 @@ class Iteratees(ioActor: ActorRef) {
         }
     }
 
-    val processLine = {
+    /**
+     * Consumes all of the input from the Iteratee and sends the results
+     * to the appropriate IoActor.
+     */
+    val processInput = {
         IO repeat {
-            readLine map {
+            readInput map {
                 case IO.Done(found) => {
                     ioActor ! found
                 }
@@ -92,8 +103,23 @@ object Constants {
 object Protocol {
     import Constants._
 
+    /**
+     * Genertes a human-readable ASCII representation of a ByteString
+     */
+    def ascii(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
+
     trait Command {
+        /**
+         * Renders a ByteString that can be directly written to the connection
+         * to a Memcached server
+         */
         def toByteString: ByteString
+
+        /**
+         * Splits this command into multiple commands which are mapped
+         * to a set of elements using a consistent hashing algorithm. This is used
+         * to make sure that each command is sent to the appropriate Memcached server.
+         */
         def consistentSplit[T](elements: List[T]): Map[T, Command]
     }
 

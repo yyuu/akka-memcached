@@ -31,7 +31,7 @@ class MemcachedClientSpec extends Specification with PendingUntilFixed {
     implicit val timeout = Timeout(Duration("30 seconds")) // needed for `?` below
     implicit val system = ActorSystem()
     val fakeIoActor = system.actorOf(Props[FakeIoActor])
-    val iteratee = IO.IterateeRef.sync(new Iteratees(fakeIoActor).processLine)
+    val iteratee = IO.IterateeRef.sync(new Iteratees(fakeIoActor).processInput)
 
     sequential
     "The Iteratee" should {
