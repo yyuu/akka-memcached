@@ -3,10 +3,12 @@ package com.klout.akkamemcache
 import ActorTypes._
 
 import akka.actor._
+import akka.actor.SupervisorStrategy._
 import akka.dispatch.Future
 import akka.event.Logging
 import akka.routing._
 import akka.util.ByteString
+import akka.util.duration._
 import com.google.common.hash.Hashing._
 import com.klout.akkamemcache.Protocol._
 import com.klout.akkamemcache.Protocol._
@@ -49,13 +51,12 @@ class PoolActor(hosts: List[(String, Int)], connectionsPerServer: Int) extends A
      * that requested it.
      */
     def updateRequestMap(result: GetResult) = {
-        requestMap ++= requestMap map {
+        requestMap foreach {
             case (actor, resultMap) => {
-                val newResultMap = resultMap map {
-                    case (key, resultOption) if key == result.key => (key, Some(result))
-                    case other                                    => other
+                resultMap foreach {
+                    case (key, resultOption) if key == result.key => resultMap update (key, Some(result))
+                    case _                                        => {}
                 }
-                (actor, newResultMap)
             }
         }
     }
@@ -65,13 +66,12 @@ class PoolActor(hosts: List[(String, Int)], connectionsPerServer: Int) extends A
      * function will send the results to the actor and remove the actor from the requestMap
      */
     def sendResponses() {
-        val responsesToSend = requestMap flatMap {
-            case (actor, resultMap) if (!resultMap.values.toList.contains(None)) => Some(actor, resultMap)
-            case other => None
+        val responsesToSend = requestMap filterNot {
+            case (actor, resultMap) => resultMap.values.toList.contains(None)
         }
         responsesToSend foreach {
-            case (actor, responses) =>
-                actor ! responses.values.flatten
+            case (actor, resultMap) =>
+                actor ! resultMap.values.flatten
                 requestMap -= actor
         }
     }
@@ -86,6 +86,11 @@ class PoolActor(hosts: List[(String, Int)], connectionsPerServer: Int) extends A
                 case (host, port) =>
                     val ioActors = (1 to connectionsPerServer).map {
                         num =>
+                            /**
+                             * Sleeps for 30ms, so the IOManager does not throw an InvalidActorName exception
+                             * when all the IoActors are created simultaneously
+                             */
+                            Thread.sleep(30)
                             context.actorOf(Props(new MemcachedIOActor(host, port, self)),
                                 name = encode("Memcached IoActor for " + host + " " + num))
                     }.toList
@@ -158,6 +163,13 @@ class PoolActor(hosts: List[(String, Int)], connectionsPerServer: Int) extends A
             sendResponses()
 
     }
+
+    /**
+     * Restart all of the actors if an exception is thrown
+     */
+    override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 3, withinTimeRange = 5 seconds) {
+        case _ => Restart
+    }
 }
 
 /**
@@ -204,11 +216,6 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
         val set = if (awaitingResponseFromMemcached) nextSet else currentSet
 
         set ++= newKeys
-
-    }
-
-    private def empty[T](set: LinkedHashSet[T]) {
-        set --= set
     }
 
     /**
@@ -297,6 +304,10 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
          * to the poolActor and make another command if necessary
          */
         case Finished => getCommandCompleted()
+    }
+
+    private def empty[T](set: LinkedHashSet[T]) {
+        set --= set
     }
 
 }

@@ -10,7 +10,6 @@ import Serialization.JBoss
 case class TestClass(test1: String,
                      test2: Map[String, Int])
 
-
 /**
  * This tests that set, get, and delete funciton properly on a local memcached conneciton.
  * You need to run a local memcached server in order for this test to function properly.

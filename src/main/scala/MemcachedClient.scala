@@ -56,7 +56,7 @@ class RealMemcachedClient(hosts: List[(String, Int)], connectionsPerServer: Int 
      * Maximum amount of time the client will wait for a response from
      * a get instruction from Memcached
      */
-    implicit val timeout = Timeout(60 seconds)
+    implicit val timeout = Timeout(30 seconds)
 
     val system = ActorSystem()
 

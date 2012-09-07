@@ -18,16 +18,12 @@ object Finished
  */
 class Iteratees(ioActor: ActorRef) {
 
-    def min(a: Int, b: Int) = {
-        if (a < b) a else b
-    }
-
     import Constants._
 
     /**
      * Skip over whitespace
      */
-    def notWhitespace(byte: Byte): Boolean = {
+    private def notWhitespace(byte: Byte): Boolean = {
         !whitespaceBytes.contains(byte)
     }
 
@@ -77,35 +73,47 @@ class Iteratees(ioActor: ActorRef) {
     }
 
     /**
-     * This iteratee generates a byte array result from Memcached. Because the
-     * length of the memcached response is known, this has better performance
-     * than bytestrings when deserializing.
+     * This iteratee generates a byte array result from Memcached. Because a byte
+     * array is stored sequentially in memory, this result is easier to deserialize than
+     * a ByteString
      */
     def byteArray(length: Int): Iteratee[Array[Byte]] = {
+
+        /**
+         * Copies bytes from the input ByteString and returns an Iteratee with the
+         * byte array of the result and the rest of the input or an iteratee with that
+         * needs more bytes to generate the result
+         */
         def continue(array: Array[Byte], total: Int, current: Int)(input: Input): (Iteratee[Array[Byte]], Input) = {
             input match {
                 case Chunk(byteString) =>
                     val bytes = byteString.toArray
-                    val numToCopy = min(total - current, bytes.size)
 
-                    Array.copy(bytes, 0, array, current, numToCopy)
+                    val numBytesToCopy = min(total - current, bytes.size)
 
-                    val chunk = if (numToCopy == bytes.size) {
+                    Array.copy(bytes, 0, array, current, numBytesToCopy)
+
+                    val chunk = if (numBytesToCopy == bytes.size) {
                         Chunk.empty
                     } else {
-                        Chunk(byteString drop numToCopy)
+                        Chunk(byteString drop numBytesToCopy)
                     }
 
-                    if (total == current + numToCopy) (Done(array), chunk)
-
-                    else {
-                        (Cont(continue(array, total, current + numToCopy)), chunk)
+                    if (total == current + numBytesToCopy) {
+                        (Done(array), chunk)
+                    } else {
+                        (Cont(continue(array, total, current + numBytesToCopy)), chunk)
                     }
 
-                case EOF(cause) => throw new Exception("EOF") //(Failure(new EOFException("Unexpected EOF")), EOF)
-                case _          => throw new Exception("Something else")
+                case EOF(cause) => throw new Exception("EOF")
+                case _          => throw new Exception("Iteratee error while processing value from Memcached")
             }
         }
+
+        /**
+         * Allocates a byte-array for the result and creates an iteratee using continue
+         * that will read the bytes from the input
+         */
         Cont(continue(new Array(length), length, 0))
     }
 
@@ -122,6 +130,10 @@ class Iteratees(ioActor: ActorRef) {
                 case _ => {}
             }
         }
+    }
+
+    private def min(a: Int, b: Int) = {
+        if (a < b) a else b
     }
 
 }

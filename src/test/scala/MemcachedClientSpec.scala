@@ -11,7 +11,7 @@ import org.specs2.mutable.Specification
 import scala.collection.mutable.HashMap
 import scala.util.Random
 
-object GiveMeTheState 
+object GiveMeTheState
 
 class FakeIoActor extends Actor {
     val state: HashMap[String, Any] = new HashMap()
@@ -26,7 +26,7 @@ class FakeIoActor extends Actor {
 
 /**
  * This test verifies that the client understands the memcached protocol. It generates
- * fake outputs from memcached and ensures that the protocol correctly parses the 
+ * fake outputs from memcached and ensures that the protocol correctly parses the
  * result.
  */
 class MemcachedClientSpec extends Specification {
