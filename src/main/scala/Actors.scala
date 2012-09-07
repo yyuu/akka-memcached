@@ -178,6 +178,29 @@ class PoolActor(hosts: List[(String, Int)], connectionsPerServer: Int) extends A
  */
 class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends Actor {
 
+    /**
+     * The initial amount of time that the client will wait before trying
+     * to reconnect to the memcached server after losing a connection
+     */
+    var reconnectDelayMillis = 1000
+
+    /**
+     * The number of consecutive failed attempts to connect to the Memcached server
+     */
+    var reconnectAttempts = 0
+
+    /**
+     * The maximum amount of time that the client will sleep before trying to
+     * reconnect to the Memcached server
+     */
+    val maxReconnectDelayMillis = 16000
+
+    /**
+     * The maximum number of times that the client will try to reconnect to the memcached server
+     * before aborting
+     */
+    val maxReconnectAttempts = 20
+
     val log = Logging(context.system, this)
     var connection: IO.SocketHandle = _
 
@@ -267,6 +290,36 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
      */
     var awaitingResponseFromMemcached = false
 
+    def attemptReconnect() = {
+        if (reconnectAttempts == maxReconnectAttempts) {
+            throw new RuntimeException("Cannot connect to " + host + " after " + reconnectAttempts + " failed attempts. Aborting...")
+        } else {
+            log warning "Connection to " + host + " lost. Waiting " + reconnectDelayMillis + " ms, then retrying"
+            Thread.sleep(reconnectDelayMillis)
+
+            /* Attempt to reconnect */
+            connection = IOManager(context.system) connect new InetSocketAddress(host, port)
+
+            /* Try writing the get command again */
+            connection write ByteString("version\r\n")
+
+            reconnectDelayMillis = min(reconnectDelayMillis * 2, maxReconnectDelayMillis)
+            reconnectAttempts += 1
+        }
+
+    }
+
+    /**
+     * Resets reconnectAttempts and reconnectDelayMillis to their default values
+     */
+    def resetReconnectCounters() = {
+        if (reconnectAttempts > 0) {
+            log warning "Connection to " + host + " re-established"
+            reconnectAttempts = 0
+            reconnectDelayMillis = 1000
+        }
+    }
+
     def receive = {
         case raw: ByteString => connection write raw
 
@@ -282,13 +335,22 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
         /**
          * Immediately writes a command to Memcached
          */
-        case command: Command       => connection write command.toByteString
+        case command: Command => connection write command.toByteString
 
         /**
          * Reads data from Memcached. The iteratee will send the result
-         * of this read to this actor as a Found or Finished message
+         * of this read to this actor as a Found or Finished message.
          */
-        case IO.Read(socket, bytes) => iteratee(IO Chunk bytes)
+        case IO.Read(socket, bytes) => {
+            resetReconnectCounters()
+            iteratee(IO Chunk bytes)
+        }
+
+        case IO.Closed(socket, cause) => attemptReconnect()
+
+        case IO.NewClient(server) => {
+            println("NEW CLIENT")
+        }
 
         /**
          * A single key-value pair has been returned from Memcached. Sends
@@ -304,9 +366,19 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
          * to the poolActor and make another command if necessary
          */
         case Finished => getCommandCompleted()
+
+        case Alive => {
+            resetReconnectCounters()
+            awaitingResponseFromMemcached = false
+            writeGetCommandToMemcachedIfPossible()
+        }
     }
 
-    private def empty[T](set: LinkedHashSet[T]) {
+    def min(a: Int, b: Int) = {
+        if (a < b) a else b
+    }
+
+    def empty[T](set: LinkedHashSet[T]) {
         set --= set
     }
 

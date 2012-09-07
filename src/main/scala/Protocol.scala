@@ -12,6 +12,8 @@ import akka.actor.IO._
  */
 object Finished
 
+object Alive
+
 /**
  * Objects of this class parse the output from Memcached and return
  * the cache hits and misses to the IoActor that manages the connection
@@ -43,6 +45,13 @@ class Iteratees(ioActor: ActorRef) {
                     ioActor ! Finished
                     None
                 }
+
+            case Version => {
+                IO takeUntil CRLF map { _ =>
+                    ioActor ! Alive
+                    None
+                }
+            }
 
             case Error => IO takeUntil CRLF map (_ => None)
 
@@ -155,6 +164,8 @@ object Constants {
     val Value = ByteString("VALUE")
 
     val End = ByteString("END")
+
+    val Version = ByteString("VERSION")
 
 }
 
