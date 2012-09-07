@@ -8,10 +8,13 @@ import ActorTypes._
 import akka.actor.IO._
 
 /**
- * Object sent to the IOActor indicating that a multiget request is complete.
+ * Object sent to the IoActor indicating that a multiget request is complete.
  */
 object Finished
 
+/**
+ * Object sent to the IoActor indicating that the connection to the client is alive.
+ */
 object Alive
 
 /**
@@ -46,6 +49,9 @@ class Iteratees(ioActor: ActorRef) {
                     None
                 }
 
+            /**
+             * Confirms that the IoActor's connection to Memcached is alive
+             */
             case Version => {
                 IO takeUntil CRLF map { _ =>
                     ioActor ! Alive
@@ -166,7 +172,6 @@ object Constants {
     val End = ByteString("END")
 
     val Version = ByteString("VERSION")
-
 }
 
 object Protocol {
@@ -250,6 +255,13 @@ object Protocol {
             if (keys.size > 0) ByteString("get " + (keys mkString " ")) ++ CRLF
             else ByteString()
         }
+    }
+
+    /**
+     * This command instructs Memcached to display it's version.
+     */
+    case object VersionCommand extends Command {
+        override def toByteString = ByteString("version\r\n")
     }
 
 }

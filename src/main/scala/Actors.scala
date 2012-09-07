@@ -187,7 +187,7 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
     /**
      * The number of consecutive failed attempts to connect to the Memcached server
      */
-    var reconnectAttempts = 0
+    var reconnectAttempts = 10
 
     /**
      * The maximum amount of time that the client will sleep before trying to
@@ -199,7 +199,7 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
      * The maximum number of times that the client will try to reconnect to the memcached server
      * before aborting
      */
-    val maxReconnectAttempts = 20
+    val maxReconnectAttempts = 3
 
     val log = Logging(context.system, this)
     var connection: IO.SocketHandle = _
@@ -290,19 +290,27 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
      */
     var awaitingResponseFromMemcached = false
 
+    /**
+     * Attempts to reconnect to the Memcached client after having lost the connection. Tries
+     * to open a new connection and requests the version command to Memcached to determine
+     * whether or not the connection is valid. If there have been too many failed connection
+     * attempts, this actor will throw an exception to indicate it's failure.
+     */
     def attemptReconnect() = {
         if (reconnectAttempts == maxReconnectAttempts) {
-            throw new RuntimeException("Cannot connect to " + host + " after " + reconnectAttempts + " failed attempts. Aborting...")
+            log error "Cannot connect to " + host + " after " + reconnectAttempts + " failed attempts. Abandoning this connection"
         } else {
             log warning "Connection to " + host + " lost. Waiting " + reconnectDelayMillis + " ms, then retrying"
+
             Thread.sleep(reconnectDelayMillis)
 
             /* Attempt to reconnect */
             connection = IOManager(context.system) connect new InetSocketAddress(host, port)
 
-            /* Try writing the get command again */
-            connection write ByteString("version\r\n")
+            /* Write the version command over the connection, hoping to get a response */
+            connection write VersionCommand.toByteString
 
+            /* Increase the amount of time that the actor will wait before trying to reconnect again */
             reconnectDelayMillis = min(reconnectDelayMillis * 2, maxReconnectDelayMillis)
             reconnectAttempts += 1
         }
