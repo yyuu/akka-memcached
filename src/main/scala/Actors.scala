@@ -187,7 +187,7 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
     /**
      * The number of consecutive failed attempts to connect to the Memcached server
      */
-    var reconnectAttempts = 10
+    var reconnectAttempts = 20
 
     /**
      * The maximum amount of time that the client will sleep before trying to

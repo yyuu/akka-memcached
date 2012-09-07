@@ -15,6 +15,7 @@ Features
  * The set and delete methods are fire-and-forget, the get method returns an `akka.dispatch.Future`
  * Uses consistent hashing to distribute data across multiple memcached servers
  * Deduplicates keys: If multiple clients make a request for the same key, only a single get request will be made for that key, and results will be forwarded to each requesting client
+ * Will reconnect to memcached if the connection is lost, and will complete any pending futures if the connection is re-established
 
 
 How to build
