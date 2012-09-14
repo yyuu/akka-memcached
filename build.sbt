@@ -5,7 +5,6 @@ name := "akka-memcached"
 
 version := "0.91"
 
-
 scalaVersion := "2.9.1"
 
 libraryDependencies ++= Seq(
@@ -27,6 +26,8 @@ resolvers ++= Seq(	"Typesafe Repository" at "http://repo.typesafe.com/typesafe/r
 
 organization := "com.klout"
 
+scalacOptions in Compile ++= Seq("-deprecation", "-unchecked")
+
 publishTo := Some("kloutLibraryReleases" at "http://maven-repo:8081/artifactory/libs-release-local")
 
 credentials := Credentials(Path.userHome / ".ivy2" / ".credentials") :: Nil
@@ -39,3 +40,4 @@ scalariformSettings ++ Seq(
     setPreference(PreserveDanglingCloseParenthesis, true).
     setPreference(PreserveSpaceBeforeArguments, true)
 )
+

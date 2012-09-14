@@ -185,7 +185,7 @@ object Protocol {
     /**
      * This trait is for a command that the MemcachedClient will send to Memcached via an IoActor
      */
-    trait Command {
+    sealed trait Command {
         /**
          * Renders a ByteString that can be directly written to the connection
          * to a Memcached server
@@ -260,8 +260,12 @@ object Protocol {
     /**
      * This command instructs Memcached to display it's version.
      */
-    case object VersionCommand extends Command {
-        override def toByteString = ByteString("version\r\n")
+    case object VersionCommand {
+        def toByteString = ByteString("version\r\n")
     }
+
+    sealed trait Response
+
+    case class GetResponse(results: List[GetResult]) extends Response
 
 }

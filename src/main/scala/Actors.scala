@@ -54,7 +54,7 @@ class PoolActor(hosts: List[(String, Int)], connectionsPerServer: Int) extends A
             case (actor, resultMap) => {
                 resultMap foreach {
                     case (key, resultOption) if key == result.key => resultMap update (key, Some(result))
-                    case _                                        => {}
+                    case _                                        => Unit
                 }
             }
         }
@@ -70,7 +70,7 @@ class PoolActor(hosts: List[(String, Int)], connectionsPerServer: Int) extends A
         }
         responsesToSend foreach {
             case (actor, resultMap) =>
-                actor ! resultMap.values.flatten
+                actor ! GetResponse(resultMap.values.flatten.toList)
                 requestMap -= actor
         }
     }
@@ -91,11 +91,11 @@ class PoolActor(hosts: List[(String, Int)], connectionsPerServer: Int) extends A
                              */
                             Thread.sleep(30)
                             context.actorOf(Props(new MemcachedIOActor(host, port, self)),
-                                name = encode("Memcached IoActor for " + host + " " + num))
+                                name = encode("Memcached IoActor for " + host + " " + num, "UTF-8"))
                     }.toList
                     val router = RoundRobinRouter(routees = ioActors)
                     val routingActor = context.actorOf(Props(new MemcachedIOActor(host, port, self)) withRouter router,
-                        name = encode("Memcached IoActor Router for " + host))
+                        name = encode("Memcached IoActor Router for " + host, "UTF-8"))
                     host -> routingActor
             } toMap
     }
@@ -127,6 +127,7 @@ class PoolActor(hosts: List[(String, Int)], connectionsPerServer: Int) extends A
                 splitKeys map {
                     case (host, keys) => (host, DeleteCommand(keys: _*))
                 }
+
         }
 
         hostCommandMap foreach {
