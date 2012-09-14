@@ -3,7 +3,7 @@ package test
 import akka.dispatch.Await
 import akka.util.Duration
 import akka.util.duration._
-import com.klout.akkamemcache._
+import com.klout.akkamemcached._
 import org.specs2.mutable.Specification
 import Serialization.JBoss
 

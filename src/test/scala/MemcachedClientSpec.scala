@@ -6,7 +6,7 @@ import akka.pattern.ask
 import akka.util.{ ByteString, Duration, Timeout }
 import akka.util.duration._
 
-import com.klout.akkamemcache._
+import com.klout.akkamemcached._
 import org.specs2.mutable.Specification
 import scala.collection.mutable.HashMap
 import scala.util.Random

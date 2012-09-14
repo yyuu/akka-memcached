@@ -1,4 +1,4 @@
-package com.klout.akkamemcache
+package com.klout.akkamemcached
 
 import akka.dispatch.Future
 import akka.actor._
@@ -10,7 +10,7 @@ import akka.util.ByteString
 import java.util.Calendar
 import java.net.URLEncoder._
 
-import com.klout.akkamemcache.Protocol._
+import com.klout.akkamemcached.Protocol._
 
 /**
  * Asynchronous memcached client.

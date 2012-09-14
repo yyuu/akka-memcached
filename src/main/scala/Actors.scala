@@ -1,4 +1,4 @@
-package com.klout.akkamemcache
+package com.klout.akkamemcached
 
 import ActorTypes._
 
@@ -10,8 +10,7 @@ import akka.routing._
 import akka.util.ByteString
 import akka.util.duration._
 import com.google.common.hash.Hashing._
-import com.klout.akkamemcache.Protocol._
-import com.klout.akkamemcache.Protocol._
+import com.klout.akkamemcached.Protocol._
 import java.io._
 import java.net.InetSocketAddress
 import java.net.URLEncoder._
