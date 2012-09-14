@@ -1,3 +1,7 @@
+/**
+ * Copyright (C) 2012 Klout Inc. <http://www.klout.com>
+ */
+
 package com.klout.akkamemcached
 
 import akka.util.ByteString

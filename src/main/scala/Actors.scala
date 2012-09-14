@@ -1,3 +1,7 @@
+/**
+ * Copyright (C) 2012 Klout Inc. <http://www.klout.com>
+ */
+
 package com.klout.akkamemcached
 
 import ActorTypes._
@@ -308,7 +312,7 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
             connection = IOManager(context.system) connect new InetSocketAddress(host, port)
 
             /* Write the version command over the connection, hoping to get a response */
-            connection write VersionCommand.toByteString
+            connection write VersionCommand.byteString
 
             /* Increase the amount of time that the actor will wait before trying to reconnect again */
             reconnectDelayMillis = min(reconnectDelayMillis * 2, maxReconnectDelayMillis)
@@ -391,26 +395,3 @@ class MemcachedIOActor(host: String, port: Int, poolActor: PoolActorRef) extends
     }
 
 }
-
-/**
- * Stores the result of a Memcached Get
- */
-sealed trait GetResult {
-    def key: String
-}
-
-/**
- * Contains a set of GetResults. This case class is necessary to compensate
- * for JVM type erasure
- */
-case class GetResults(results: Set[GetResult])
-
-/**
- * Cache Hit
- */
-case class Found(key: String, value: Array[Byte]) extends GetResult
-
-/**
- * Cache Miss
- */
-case class NotFound(key: String) extends GetResult

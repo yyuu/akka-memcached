@@ -1,3 +1,7 @@
+/**
+ * Copyright (C) 2012 Klout Inc. <http://www.klout.com>
+ */
+
 package test
 
 import akka.dispatch.Await

@@ -1,3 +1,7 @@
+/**
+ * Copyright (C) 2012 Klout Inc. <http://www.klout.com>
+ */
+
 package com.klout.akkamemcached
 
 import akka.util.ByteString
@@ -261,11 +265,40 @@ object Protocol {
      * This command instructs Memcached to display it's version.
      */
     case object VersionCommand {
-        def toByteString = ByteString("version\r\n")
+        val byteString = ByteString("version\r\n")
     }
 
+    /**
+     * Stores the result of a Memcached Get
+     */
+    sealed trait GetResult {
+        def key: String
+    }
+
+    /**
+     * Contains a set of GetResults. This case class is necessary to compensate
+     * for JVM type erasure
+     */
+    case class GetResults(results: Set[GetResult])
+
+    /**
+     * Cache Hit
+     */
+    case class Found(key: String, value: Array[Byte]) extends GetResult
+
+    /**
+     * Cache Miss
+     */
+    case class NotFound(key: String) extends GetResult
+
+    /**
+     * Represents the possible responses from the actor.
+     */
     sealed trait Response
 
+    /**
+     * Contains the GetResults for each key.
+     */
     case class GetResponse(results: List[GetResult]) extends Response
 
 }

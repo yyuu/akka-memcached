@@ -1,3 +1,7 @@
+/**
+ * Copyright (C) 2012 Klout Inc. <http://www.klout.com>
+ */
+
 package test
 
 import akka.actor._
@@ -7,6 +11,8 @@ import akka.util.{ ByteString, Duration, Timeout }
 import akka.util.duration._
 
 import com.klout.akkamemcached._
+import com.klout.akkamemcached.Protocol._
+
 import org.specs2.mutable.Specification
 import scala.collection.mutable.HashMap
 import scala.util.Random
