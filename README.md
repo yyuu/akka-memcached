@@ -7,6 +7,14 @@ inspired by, but much simpler than, this project: <https://github.com/derekjw/fy
 
 info on akka io / iteratee library: <http://doc.akka.io/docs/akka/2.0.3/scala/io.html>
 
+Disclaimer
+----------
+This client is has not seen extensive production testing and should be used with care.
+
+Maintainers
+-----------
+* [Zack Grannan (@zgrannan)](http://zackgrannan.com/)
+* [David Y. Ross (@dyross)](mailto:dyross@klout.com)
 
 Features
 --------
