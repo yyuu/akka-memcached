@@ -1,5 +1,6 @@
-import com.typesafe.sbtscalariform.ScalariformPlugin._
 import scalariform.formatter.preferences._
+
+scalariformSettings
 
 name := "akka-memcached"
 
@@ -36,4 +37,3 @@ scalariformSettings ++ Seq(
     setPreference(PreserveDanglingCloseParenthesis, true).
     setPreference(PreserveSpaceBeforeArguments, true)
 )
-
