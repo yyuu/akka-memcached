@@ -13,10 +13,6 @@ libraryDependencies ++= Seq(
     "trove" % "trove" % "1.0.2",
     "com.typesafe.akka" % "akka-actor" % "2.0.3",
     "org.specs2" %% "specs2" % "1.12.1" % "test",
-    "com.google.code.simple-spring-memcached" % "spymemcached" % "2.8.1",
-    "junit" % "junit" % "4.10",
-    "junitperf" % "junitperf" % "1.8",
-    "com.novocode" % "junit-interface" % "0.8" % "test->default",
     "com.google.guava" % "guava" % "13.0"
 )
 
