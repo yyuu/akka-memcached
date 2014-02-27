@@ -12,7 +12,7 @@ libraryDependencies ++= Seq(
     "log4j" % "log4j" % "1.2.14",
     "jboss" % "jboss-serialization" % "1.0.3.GA",
     "trove" % "trove" % "1.0.2",
-    "com.typesafe.akka" % "akka-actor" % "2.0.3",
+    "com.typesafe.akka" %% "akka-actor" % "2.2.0" % "provided",
     "org.specs2" %% "specs2" % "1.12.3" % "test",
     "com.google.guava" % "guava" % "13.0"
 )

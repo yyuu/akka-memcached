@@ -8,11 +8,11 @@ import ActorTypes._
 
 import akka.actor._
 import akka.actor.SupervisorStrategy._
-import akka.dispatch.Future
+import scala.concurrent.Future
 import akka.event.Logging
 import akka.routing._
 import akka.util.ByteString
-import akka.util.duration._
+import scala.concurrent.duration._
 import com.google.common.hash.Hashing._
 import com.klout.akkamemcached.Protocol._
 import java.io._
