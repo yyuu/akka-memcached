@@ -6,7 +6,7 @@ name := "akka-memcached"
 
 version := "0.91"
 
-scalaVersion := "2.9.1"
+scalaVersion := "2.10.0"
 
 libraryDependencies ++= Seq(
     "log4j" % "log4j" % "1.2.14",
