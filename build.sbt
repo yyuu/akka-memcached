@@ -11,7 +11,7 @@ scalaVersion := "2.10.0"
 libraryDependencies ++= Seq(
     "log4j" % "log4j" % "1.2.14",
     "jboss" % "jboss-serialization" % "1.0.3.GA",
-    "com.typesafe.akka" % "akka-actor" % "2.0.3",
+    "com.typesafe.akka" %% "akka-actor" % "2.2.0" % "provided",
     "com.google.guava" % "guava" % "13.0"
 )
 
