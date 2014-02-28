@@ -4,10 +4,10 @@
 
 package com.klout.akkamemcached
 
-import akka.dispatch.Future
+import scala.concurrent.Future
 import akka.actor._
-import akka.util.Duration
-import akka.util.duration._
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 import akka.pattern.ask
 import akka.util.Timeout
 import akka.util.ByteString

@@ -121,11 +121,11 @@ class Iteratees(ioActor: ActorRef) {
                     if (total == current + numBytesToCopy) {
                         (Done(array), chunk)
                     } else {
-                        (Cont(continue(array, total, current + numBytesToCopy)), chunk)
+                        (Next(continue(array, total, current + numBytesToCopy)), chunk)
                     }
 
-                case EOF(cause) => throw new Exception("EOF")
-                case _          => throw new Exception("Iteratee error while processing value from Memcached")
+                case EOF => throw new Exception("EOF")
+                case _   => throw new Exception("Iteratee error while processing value from Memcached")
             }
         }
 
@@ -133,7 +133,7 @@ class Iteratees(ioActor: ActorRef) {
          * Allocates a byte-array for the result and creates an iteratee using continue
          * that will read the bytes from the input
          */
-        Cont(continue(new Array(length), length, 0))
+        Next(continue(new Array(length), length, 0))
     }
 
     /**

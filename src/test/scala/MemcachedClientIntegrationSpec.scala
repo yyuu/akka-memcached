@@ -4,9 +4,8 @@
 
 package test
 
-import akka.dispatch.Await
-import akka.util.Duration
-import akka.util.duration._
+import scala.concurrent.Await
+import scala.concurrent.duration._
 import com.klout.akkamemcached._
 import org.specs2.mutable.Specification
 import Serialization.JBoss

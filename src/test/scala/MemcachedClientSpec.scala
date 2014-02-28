@@ -5,10 +5,10 @@
 package test
 
 import akka.actor._
-import akka.dispatch.Await
+import scala.concurrent.Await
+import scala.concurrent.duration._
 import akka.pattern.ask
-import akka.util.{ ByteString, Duration, Timeout }
-import akka.util.duration._
+import akka.util.{ ByteString, Timeout }
 
 import com.klout.akkamemcached._
 import com.klout.akkamemcached.Protocol._
@@ -36,7 +36,7 @@ class FakeIoActor extends Actor {
  * result.
  */
 class MemcachedClientSpec extends Specification {
-    implicit val timeout = Timeout(Duration("30 seconds")) // needed for `?` below
+    implicit val timeout = Timeout(30L, SECONDS) // needed for `?` below
     implicit val system = ActorSystem()
     val fakeIoActor = system.actorOf(Props[FakeIoActor])
     val iteratee = IO.IterateeRef.sync(new Iteratees(fakeIoActor).processInput)
