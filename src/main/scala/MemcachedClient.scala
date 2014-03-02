@@ -7,7 +7,7 @@ package com.klout.akkamemcached
 import scala.concurrent.Future
 import akka.actor._
 import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
 import akka.pattern.ask
 import akka.util.Timeout
 import akka.util.ByteString
@@ -38,14 +38,14 @@ trait MemcachedClient {
      * return a Future containing None. Otherwise, this method will return a Future of
      * Some[T]
      */
-    def get[T: Serializer](key: String): Future[Option[T]]
+    def get[T: Serializer](key: String)(implicit context: ExecutionContext): Future[Option[T]]
 
     /**
      * Retrieves the values of multiple keys. This method returns a future of a mapping from
      * cache keys to values. Keys that do not exist in Memcached will not be included in the
      * map
      */
-    def mget[T: Serializer](keys: Set[String]): Future[Map[String, T]]
+    def mget[T: Serializer](keys: Set[String])(implicit context: ExecutionContext): Future[Map[String, T]]
 
     /**
      * Deletes multiple keys - Fire and Forget
@@ -77,11 +77,11 @@ class RealMemcachedClient(hosts: List[(String, Int)], connectionsPerServer: Int 
         poolActor ! SetCommand(serializedKeyValueMap, ttl.toSeconds)
     }
 
-    override def get[T: Serializer](key: String): Future[Option[T]] = {
+    override def get[T: Serializer](key: String)(implicit context: ExecutionContext): Future[Option[T]] = {
         mget(Set(key)).map(_.get(key))
     }
 
-    override def mget[T: Serializer](keys: Set[String]): Future[Map[String, T]] = {
+    override def mget[T: Serializer](keys: Set[String])(implicit context: ExecutionContext): Future[Map[String, T]] = {
         val command = GetCommand(keys)
         (poolActor ? command).map{
             case GetResponse(results) => {
